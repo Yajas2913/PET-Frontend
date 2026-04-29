@@ -7,12 +7,7 @@ import { formatAmount } from "../types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -207,15 +202,32 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
     return periods.map((period, idx) => {
       const key = toPeriodKey(period.year, period.monthIndex);
       const actualSupplier = supplierByPeriod.get(key);
+      const seasonalWave = Math.sin((idx / 12) * Math.PI * 2);
+      const shortCycle = ((idx % 5) - 2) * 1.6;
+      const secondaryWave = Math.sin((idx / 6) * Math.PI * 2 + 0.8);
+      const volatilityPulse = idx % 17 === 0 ? 14 : idx % 11 === 0 ? -10 : 0;
+      const supplierVariability = seasonalWave * 8 + shortCycle;
+      const marketVariability =
+        seasonalWave * 18 +
+        secondaryWave * 11 -
+        shortCycle * 1.2 +
+        volatilityPulse;
       const supplierTlcValue =
         actualSupplier !== undefined
           ? actualSupplier
-          : Number((fallbackSupplierBase * (0.85 + idx * 0.0018)).toFixed(1));
+          : Number(
+              (
+                fallbackSupplierBase * (0.85 + idx * 0.0018) +
+                supplierVariability
+              ).toFixed(1)
+            );
 
       const marketResearchValue =
         period.year === 2026 && period.monthIndex === 2
           ? baseMarket
-          : Number((baseMarket * (0.86 + idx * 0.0016)).toFixed(1));
+          : Number(
+              (baseMarket * (0.86 + idx * 0.0014) + marketVariability).toFixed(1)
+            );
 
       return {
         period: period.period,
@@ -246,6 +258,18 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
       return next;
     });
   }, [destinationSourceMonthly, simulationMetric, simulationPercent]);
+
+  const combinedMonthlyTlcData = useMemo(
+    () =>
+      destinationSourceMonthly.map((row, idx) => ({
+        period: row.period,
+        marketResearchValue: row.marketResearchValue,
+        originalSupplierTlcValue: row.supplierTlcValue,
+        simulatedSupplierTlcValue:
+          destinationSourceMonthlySimulated[idx]?.supplierTlcValue ?? row.supplierTlcValue,
+      })),
+    [destinationSourceMonthly, destinationSourceMonthlySimulated]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
@@ -328,84 +352,60 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
         </RevealOnScroll>
 
         <RevealOnScroll delay={0.05}>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">Monthly Market Research TLC</CardTitle>
-              <CardDescription>
-                {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
-              </CardDescription>
-              <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
-                <span aria-hidden>⚠</span>
-                <span>Market Research values are dummy data.</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-border bg-card/40 p-3">
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={destinationSourceMonthlySimulated} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#a1a1aa" }} tickFormatter={compactPeriodTick} interval={0} minTickGap={10} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
-                      <Tooltip formatter={(value) => formatAmount(value as number | string | null | undefined)} />
-                      <Line type="monotone" dataKey="marketResearchValue" name="Market Research TLC" stroke="#eab308" strokeWidth={2.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">Monthly Supplier TLC</CardTitle>
-              <CardDescription>
-                {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-border bg-card/40 p-3">
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={destinationSourceMonthlySimulated} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#a1a1aa" }} tickFormatter={compactPeriodTick} interval={0} minTickGap={10} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
-                      <Tooltip formatter={(value) => formatAmount(value as number | string | null | undefined)} />
-                      <Line type="monotone" dataKey="supplierTlcValue" name="Supplier TLC" stroke="#22c55e" strokeWidth={2.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        </RevealOnScroll>
-
-        <RevealOnScroll delay={0.07}>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Focused Metric Trend</CardTitle>
-            <CardDescription>{focusMetric} shown month by month.</CardDescription>
+            <CardTitle className="text-xl">Monthly Market Research TLC vs Supplier TLC</CardTitle>
+            <CardDescription>
+              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
+            </CardDescription>
+            <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
+              <span aria-hidden>⚠</span>
+              <span>Market Research values are dummy data with simulated variability.</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border bg-card/40 p-3">
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendBase} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                    <defs>
-                      <linearGradient id="focusFillSimulationPage" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#eab308" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#eab308" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={combinedMonthlyTlcData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="period" tick={{ fontSize: 12, fill: "#a1a1aa" }} interval={Math.max(Math.floor(trendBase.length / 8), 0)} minTickGap={20} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickFormatter={compactPeriodTick}
+                      interval={0}
+                      minTickGap={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
                     <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip formatter={(value) => formatAmount(value as number | string | null | undefined)} />
-                    <Area type="monotone" dataKey={focusMetric} stroke="#eab308" fill="url(#focusFillSimulationPage)" strokeWidth={3} />
-                  </AreaChart>
+                    <Line
+                      type="monotone"
+                      dataKey="marketResearchValue"
+                      name="Market Research TLC"
+                      stroke="#eab308"
+                      strokeWidth={2.5}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="originalSupplierTlcValue"
+                      name="Original Supplier TLC"
+                      stroke="#22c55e"
+                      strokeWidth={2.2}
+                      strokeDasharray="6 4"
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="simulatedSupplierTlcValue"
+                      name="Simulated Supplier TLC"
+                      stroke="#38bdf8"
+                      strokeWidth={2.6}
+                      dot={false}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -413,49 +413,41 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
         </Card>
         </RevealOnScroll>
 
-        <RevealOnScroll delay={0.09}>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Latest Month Composition</CardTitle>
-            <CardDescription>{latestPoint?.period}</CardDescription>
+            <CardTitle className="text-xl">Monthly Vendor Breakdown Trend</CardTitle>
+            <CardDescription>
+              Resin index, financing, freight (regular/incremental), and others across months.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border bg-card/40 p-3">
-              <div className="h-[280px] w-full">
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      { name: "Resin Index", value: Number(latestPoint?.["Resin Index"] ?? 0) },
-                      { name: "Financing", value: Number(latestPoint?.["Resin Financing cost"] ?? 0) },
-                      { name: "Freight Reg", value: Number(latestPoint?.["Resin Freight cost (Reg)"] ?? 0) },
-                      { name: "Freight Inc", value: Number(latestPoint?.["Resin Freight cost (Inc)"] ?? 0) },
-                      { name: "CIF Inc", value: Number(latestPoint?.["CIF(Incremental)"] ?? 0) },
-                      { name: "CIF Reg", value: Number(latestPoint?.["CIF(Regular)"] ?? 0) },
-                      { name: "Others", value: Number(latestPoint?.["Others"] ?? 0) },
-                      { name: "Final Price", value: Number(latestPoint?.["Final Price"] ?? 0) },
-                    ]}
-                    layout="vertical"
-                    margin={{ top: 8, right: 16, bottom: 8, left: 12 }}
-                  >
+                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis type="number" tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#d4d4d8" }} width={90} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickFormatter={compactPeriodTick}
+                      interval={0}
+                      minTickGap={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip formatter={(value) => formatAmount(value as number | string | null | undefined)} />
-                    <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#eab308">
-                      <LabelList
-                        dataKey="value"
-                        position="right"
-                        formatter={(value) => formatAmount(value as number | string | null | undefined)}
-                        className="fill-foreground text-[10px] font-semibold"
-                      />
-                    </Bar>
-                  </BarChart>
+                    <Line type="monotone" dataKey="Resin Index" stroke="#3b82f6" strokeWidth={2.2} dot={false} />
+                    <Line type="monotone" dataKey="Resin Financing cost" stroke="#a855f7" strokeWidth={2.2} dot={false} />
+                    <Line type="monotone" dataKey="Resin Freight cost (Reg)" stroke="#06b6d4" strokeWidth={2.2} dot={false} />
+                    <Line type="monotone" dataKey="Resin Freight cost (Inc)" stroke="#f97316" strokeWidth={2.2} dot={false} />
+                    <Line type="monotone" dataKey="Others" stroke="#94a3b8" strokeWidth={2.2} dot={false} />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </CardContent>
         </Card>
-        </RevealOnScroll>
       </section>
     </div>
   );

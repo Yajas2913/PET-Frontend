@@ -206,7 +206,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                 </h2>
               </div>
 
-              <div className="mt-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2">
+              <div className="mt-5 grid grid-cols-3 gap-3 max-lg:grid-cols-2">
                 <div className="rounded-xl border border-border bg-card/30 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Market Research (Delloite) TLC
@@ -244,14 +244,6 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-border bg-card/30 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Cost Components
-                  </p>
-                  <p className="mt-1 text-base font-extrabold text-foreground">
-                    {activeCountry?.breakdown.length ?? 0}
-                  </p>
-                </div>
               </div>
             </CardContent>
           </Card>

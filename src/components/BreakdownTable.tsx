@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import type { BreakdownItem } from "../types";
 import { formatAmount } from "../types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -77,6 +77,9 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
   vendorBreakdown = [],
   isDummyMarketResearchData = false,
 }) => {
+  const [showMarketResearchTable, setShowMarketResearchTable] = useState(false);
+  const [showSupplierSheetTable, setShowSupplierSheetTable] = useState(false);
+
   const toNumber = (value: string | number | null | undefined) => {
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value !== "string") return null;
@@ -122,6 +125,10 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
         <CardDescription>
           Market Research and Supplier values mapped to common components ($/MT).
         </CardDescription>
+        <div className="mt-2 inline-flex w-fit self-start items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+          <span aria-hidden>⚠</span>
+          <span>Verify the new classifications</span>
+        </div>
         {isDummyMarketResearchData ? (
           <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
             <span aria-hidden>⚠</span>
@@ -165,6 +172,94 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowMarketResearchTable((prev) => !prev)}
+              className="flex w-full items-center justify-between border-l-4 border-primary/40 bg-card/40 px-3 py-2 text-left"
+            >
+              <span className="text-sm font-semibold tracking-wide text-foreground">
+                Market Research (Deloitte) Details
+              </span>
+              <span className="text-base font-bold text-primary/90" aria-hidden>
+                {showMarketResearchTable ? "-" : "+"}
+              </span>
+            </button>
+            {showMarketResearchTable ? (
+              <div className="border-t border-border">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="w-[40px] text-center">#</TableHead>
+                      <TableHead>Component</TableHead>
+                      <TableHead className="text-right w-[140px]">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {breakdown.map((item, idx) => (
+                      <TableRow key={`${item.label}-${idx}`}>
+                        <TableCell className="text-center text-muted-foreground text-[11px]">
+                          {idx + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">{item.label}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {typeof item.amount === "number"
+                            ? formatAmount(item.amount)
+                            : item.amount || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowSupplierSheetTable((prev) => !prev)}
+              className="flex w-full items-center justify-between border-l-4 border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-left"
+            >
+              <span className="text-sm font-semibold tracking-wide text-foreground">
+                Supplier Sheet Details
+              </span>
+              <span className="text-base font-bold text-primary/90" aria-hidden>
+                {showSupplierSheetTable ? "-" : "+"}
+              </span>
+            </button>
+            {showSupplierSheetTable ? (
+              <div className="border-t border-border">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="w-[40px] text-center">#</TableHead>
+                      <TableHead>Component</TableHead>
+                      <TableHead className="text-right w-[140px]">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorBreakdown.map((item, idx) => (
+                      <TableRow key={`${item.label}-${idx}`}>
+                        <TableCell className="text-center text-muted-foreground text-[11px]">
+                          {idx + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">{item.label}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {typeof item.amount === "number"
+                            ? formatAmount(item.amount)
+                            : item.amount || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+          </div>
         </div>
       </CardContent>
     </Card>

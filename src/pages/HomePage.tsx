@@ -13,6 +13,10 @@ type HomePageProps = {
 };
 
 const DEFAULT_DESTINATIONS = ["El Salvador", "Brazil", "Honduras"];
+const TOTAL_LANDED_COST_KEY = "total landed cost";
+const DIFFERENCE_KEY = "difference";
+type SortKey = "default" | "tlc" | "delta";
+type SortOrder = "desc" | "asc";
 
 const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const navigate = useNavigate();
@@ -30,6 +34,9 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const paramDestination = searchParams.get("destination") ?? "";
   const paramMonth = searchParams.get("month") ?? "";
   const paramYear = searchParams.get("year") ?? "";
+  const paramSource = searchParams.get("source") ?? "";
+  const sortBy = (searchParams.get("sortBy") as SortKey) || "default";
+  const sortOrder = (searchParams.get("sortOrder") as SortOrder) || "desc";
 
   const computedDefaultDestination = useMemo(() => {
     return data.destination && destinationOptions.includes(data.destination)
@@ -71,24 +78,76 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
       : monthOptions[0] ?? "";
 
   const orderedCountries = useMemo(() => {
+    const getNumericMetric = (
+      country: ApiResponse["countries"][number],
+      labelKey: string
+    ) => {
+      const metric = country.breakdown.find((b) =>
+        b.label.toLowerCase().includes(labelKey)
+      )?.amount;
+      return typeof metric === "number" ? metric : null;
+    };
+
+    const compareWithNullsLast = (aValue: number | null, bValue: number | null) => {
+      if (aValue === null && bValue === null) return 0;
+      if (aValue === null) return 1;
+      if (bValue === null) return -1;
+      if (aValue === bValue) return 0;
+      const direction = sortOrder === "asc" ? 1 : -1;
+      return (aValue - bValue) * direction;
+    };
+
+    if (sortBy === "tlc") {
+      return [...data.countries].sort((a, b) => {
+        const byTlc = compareWithNullsLast(
+          getNumericMetric(a, TOTAL_LANDED_COST_KEY),
+          getNumericMetric(b, TOTAL_LANDED_COST_KEY)
+        );
+        return byTlc !== 0 ? byTlc : a.country.localeCompare(b.country);
+      });
+    }
+
+    if (sortBy === "delta") {
+      return [...data.countries].sort((a, b) => {
+        const byDelta = compareWithNullsLast(
+          getNumericMetric(a, DIFFERENCE_KEY),
+          getNumericMetric(b, DIFFERENCE_KEY)
+        );
+        return byDelta !== 0 ? byDelta : a.country.localeCompare(b.country);
+      });
+    }
+
     return [...data.countries].sort((a, b) => {
       if (a.country === "China") return -1;
       if (b.country === "China") return 1;
       return 0;
     });
-  }, [data.countries]);
+  }, [data.countries, sortBy, sortOrder]);
+
+  const sourceOptions = useMemo(
+    () => orderedCountries.map((country) => country.country),
+    [orderedCountries]
+  );
+  const selectedSource =
+    paramSource && sourceOptions.includes(paramSource)
+      ? paramSource
+      : "";
 
   useEffect(() => {
     const needsDestination = !paramDestination;
     const needsMonth = !paramMonth;
     const needsYear = !paramYear;
+    const hasInvalidSource = paramSource && !sourceOptions.includes(paramSource);
 
-    if (!needsDestination && !needsMonth && !needsYear) return;
+    if (!needsDestination && !needsMonth && !needsYear && !hasInvalidSource) return;
 
     const next = new URLSearchParams(searchParams);
     next.set("destination", selectedDestination);
     next.set("month", selectedMonth);
     next.set("year", selectedYear);
+    if (hasInvalidSource) {
+      next.delete("source");
+    }
 
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,9 +155,11 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
     paramDestination,
     paramMonth,
     paramYear,
+    paramSource,
     selectedDestination,
     selectedMonth,
     selectedYear,
+    sourceOptions,
     setSearchParams,
   ]);
 
@@ -170,6 +231,38 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Sort by
+            </span>
+            <select
+              value={sortBy}
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams);
+                next.set("sortBy", event.target.value);
+                setSearchParams(next);
+              }}
+              className="rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground"
+            >
+              <option value="default">Default</option>
+              <option value="tlc">TLC</option>
+              <option value="delta">Delta</option>
+            </select>
+            <select
+              value={sortOrder}
+              disabled={sortBy === "default"}
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams);
+                next.set("sortOrder", event.target.value);
+                setSearchParams(next);
+              }}
+              className="rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="desc">High to Low</option>
+              <option value="asc">Low to High</option>
+            </select>
+          </div>
+
           <div className="inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-200">
             <span aria-hidden>⚠</span>
             <span>Displayed TLC values are dummy data for simulation.</span>
@@ -184,17 +277,27 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                   month={selectedMonth}
                   year={selectedYear}
                   vendorBreakdowns={data.vendorBreakdowns ?? []}
-                  onDeepDive={() => {
+                  isSelected={selectedSource === country.country}
+                  onSelect={() => {
                     const next = new URLSearchParams(searchParams);
-                    next.set("destination", selectedDestination);
-                    next.set("month", selectedMonth);
-                    next.set("year", selectedYear);
                     next.set("source", country.country);
-                    navigate({
-                      pathname: "/deep-dive",
-                      search: next.toString(),
-                    });
+                    setSearchParams(next);
                   }}
+                  onDeepDive={
+                    selectedSource === country.country
+                      ? () => {
+                          const next = new URLSearchParams(searchParams);
+                          next.set("destination", selectedDestination);
+                          next.set("month", selectedMonth);
+                          next.set("year", selectedYear);
+                          next.set("source", selectedSource);
+                          navigate({
+                            pathname: "/deep-dive",
+                            search: next.toString(),
+                          });
+                        }
+                      : undefined
+                  }
                 />
               </RevealOnScroll>
             ))}

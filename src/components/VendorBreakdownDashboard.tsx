@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -7,11 +7,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LabelList,
 } from "recharts";
 import {
   Card,
@@ -198,8 +193,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
 //   selectedYear,
   onBack,
 }) => {
-  const focusMetric = "Total Resing Price ABI Formulae";
-
+  const [selectedTrendSeries, setSelectedTrendSeries] = useState<string>("all");
   const filteredEntries = useMemo(() => {
     return vendorBreakdowns.filter((entry) => {
       const destinationMatch = selectedDestination ? entry.destination === selectedDestination : true;
@@ -217,9 +211,16 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   const latestFinalPrice = Number(latestPoint?.["Final Price"] ?? 0);
   const previousFinalPrice = Number(previousPoint?.["Final Price"] ?? 0);
   const latestFormula = Number(latestPoint?.["Total Resing Price ABI Formulae"] ?? 0);
-  const latestOthers = Number(latestPoint?.["Others"] ?? 0);
-  const focusMetricValue = Number(latestPoint?.[focusMetric] ?? 0);
+  const previousFormula = Number(previousPoint?.["Total Resing Price ABI Formulae"] ?? 0);
   const delta = latestFinalPrice - previousFinalPrice;
+  const formulaDelta = latestFormula - previousFormula;
+  const trendSeries = [
+    { key: "Resin Index", color: "#3b82f6" },
+    { key: "Resin Financing cost", color: "#a855f7" },
+    { key: "Resin Freight cost (Reg)", color: "#06b6d4" },
+    { key: "Resin Freight cost (Inc)", color: "#f97316" },
+    { key: "Others", color: "#94a3b8" },
+  ] as const;
 
   const destinationSourceMonthly = useMemo(() => {
     const destination = selectedDestination || "Colombia";
@@ -262,16 +263,33 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
     return periods.map((period, idx) => {
       const key = toPeriodKey(period.year, period.monthIndex);
       const actualSupplier = supplierByPeriod.get(key);
+      const seasonalWave = Math.sin((idx / 12) * Math.PI * 2);
+      const shortCycle = ((idx % 5) - 2) * 1.6;
+      const secondaryWave = Math.sin((idx / 6) * Math.PI * 2 + 0.8);
+      const volatilityPulse = idx % 17 === 0 ? 14 : idx % 11 === 0 ? -10 : 0;
+      const supplierVariability = seasonalWave * 8 + shortCycle;
+      const marketVariability =
+        seasonalWave * 18 +
+        secondaryWave * 11 -
+        shortCycle * 1.2 +
+        volatilityPulse;
       const supplierTlcValue =
         actualSupplier !== undefined
           ? actualSupplier
-          : Number((fallbackSupplierBase * (0.85 + idx * 0.0018)).toFixed(1));
+          : Number(
+              (
+                fallbackSupplierBase * (0.85 + idx * 0.0018) +
+                supplierVariability
+              ).toFixed(1)
+            );
 
       // Use actual where known (Mar 2026), dummy for historical gaps.
       const marketResearchValue =
         period.year === 2026 && period.monthIndex === 2
           ? baseMarket
-          : Number((baseMarket * (0.86 + idx * 0.0016)).toFixed(1));
+          : Number(
+              (baseMarket * (0.86 + idx * 0.0014) + marketVariability).toFixed(1)
+            );
 
       return {
         period: period.period,
@@ -354,13 +372,15 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="py-2 px-2 shadow-lg">
-            <CardHeader className="pb-2">
-              <CardDescription>Latest Final Price</CardDescription>
-              <CardTitle className="text-2xl text-foreground">{formatAmount(latestFinalPrice)}</CardTitle>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-primary/20 py-2 px-2 shadow-lg">
+            <CardHeader className="pb-2 space-y-1">
+              <CardDescription>Final Price (March 2026)</CardDescription>
+              <CardTitle className="text-3xl font-extrabold text-foreground">
+                {formatAmount(latestFinalPrice)}
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <Badge
                 variant="secondary"
                 className={
@@ -372,179 +392,155 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                 {delta >= 0 ? "+" : ""}
                 {formatAmount(delta)} vs previous month
               </Badge>
+              <p className="text-xs text-muted-foreground">Latest available final delivered price.</p>
             </CardContent>
           </Card>
 
-          <Card className="py-2 px-2 shadow-lg">
-            <CardHeader className="pb-2">
-              <CardDescription>Latest ABI Formula</CardDescription>
-              <CardTitle className="text-2xl text-primary">{formatAmount(latestFormula)}</CardTitle>
+          <Card className="border-yellow-500/20 py-2 px-2 shadow-lg">
+            <CardHeader className="pb-2 space-y-1">
+              <CardDescription>Total Landed Cost (PET Resin) (March 2026)</CardDescription>
+              <CardTitle className="text-3xl font-extrabold text-primary">
+                {formatAmount(latestFormula)}
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Mapped from Total Resin Price ABI VIRGIN Formula</p>
+            <CardContent className="space-y-2">
+              <Badge
+                variant="secondary"
+                className={
+                  formulaDelta <= 0
+                    ? "bg-green-500/15 text-green-400 border border-green-500/20"
+                    : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
+                }
+              >
+                {formulaDelta >= 0 ? "+" : ""}
+                {formatAmount(formulaDelta)} vs previous month
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                Mapped from Total Resin Price ABI VIRGIN Formula.
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="py-2 px-2 shadow-lg">
-            <CardHeader className="pb-2">
-              <CardDescription>Others Bucket</CardDescription>
-              <CardTitle className="text-2xl text-foreground">{formatAmount(latestOthers)}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Subtotal, duty, landed factor, legislation and surcharge combined</p>
-            </CardContent>
-          </Card>
-
-          <Card className="py-2 px-2 shadow-lg">
-            <CardHeader className="pb-2">
-              <CardDescription>Focus Metric</CardDescription>
-              <CardTitle className="text-2xl text-foreground">{formatAmount(focusMetricValue)}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Latest available value for the currently highlighted series.</p>
-            </CardContent>
-          </Card>
         </div>
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Focused Metric Trend</CardTitle>
+            <CardTitle className="text-xl">Monthly Market Research TLC vs Supplier TLC</CardTitle>
             <CardDescription>
-              {focusMetric} shown month by month.
+              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
             </CardDescription>
+            <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
+              <span aria-hidden>⚠</span>
+              <span>Market Research values are dummy data with simulated variability.</span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border bg-card/40 p-3">
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                    <defs>
-                      <linearGradient id="focusFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#eab308" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#eab308" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={destinationSourceMonthly} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="period" tick={{ fontSize: 12, fill: "#a1a1aa" }} interval={Math.max(Math.floor(trendData.length / 8), 0)} minTickGap={20} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickFormatter={compactPeriodTick}
+                      interval={0}
+                      minTickGap={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
                     <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip content={<TrendTooltip />} />
-                    <Area type="monotone" dataKey={focusMetric} stroke="#eab308" fill="url(#focusFill)" strokeWidth={3} />
-                  </AreaChart>
+                    <Line
+                      type="monotone"
+                      dataKey="marketResearchValue"
+                      name="Market Research TLC"
+                      stroke="#eab308"
+                      strokeWidth={2.5}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="supplierTlcValue"
+                      name="Supplier TLC"
+                      stroke="#22c55e"
+                      strokeWidth={2.5}
+                      dot={false}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">Monthly Market Research TLC</CardTitle>
-              <CardDescription>
-                {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
-              </CardDescription>
-              <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
-                <span aria-hidden>⚠</span>
-                <span>Market Research values are dummy data.</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-border bg-card/40 p-3">
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={destinationSourceMonthly} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis
-                        dataKey="period"
-                        tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                        tickFormatter={compactPeriodTick}
-                        interval={0}
-                        minTickGap={10}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
-                      <Tooltip content={<TrendTooltip />} />
-                      <Line type="monotone" dataKey="marketResearchValue" name="Market Research TLC" stroke="#eab308" strokeWidth={2.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl">Monthly Supplier TLC</CardTitle>
-              <CardDescription>
-                {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-border bg-card/40 p-3">
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={destinationSourceMonthly} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                      <XAxis
-                        dataKey="period"
-                        tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                        tickFormatter={compactPeriodTick}
-                        interval={0}
-                        minTickGap={10}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
-                      <Tooltip content={<TrendTooltip />} />
-                      <Line type="monotone" dataKey="supplierTlcValue" name="Supplier TLC" stroke="#22c55e" strokeWidth={2.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Latest Month Composition</CardTitle>
-            <CardDescription>{latestPoint?.period}</CardDescription>
+            <CardTitle className="text-xl">Monthly Vendor Breakdown Trend</CardTitle>
+            <CardDescription>
+              Resin index, financing, freight (regular/incremental), and others across months.
+            </CardDescription>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedTrendSeries("all")}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                  selectedTrendSeries === "all"
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-border bg-card/40 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All
+              </button>
+              {trendSeries.map((series) => (
+                <button
+                  key={series.key}
+                  type="button"
+                  onClick={() => setSelectedTrendSeries(series.key)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                    selectedTrendSeries === series.key
+                      ? "border-primary/40 bg-primary/15 text-primary"
+                      : "border-border bg-card/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {series.key}
+                </button>
+              ))}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border bg-card/40 p-3">
-              <div className="h-[280px] w-full">
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      { name: "Resin Index", value: Number(latestPoint?.["Resin Index"] ?? 0) },
-                      { name: "Financing", value: Number(latestPoint?.["Resin Financing cost"] ?? 0) },
-                      { name: "Freight Reg", value: Number(latestPoint?.["Resin Freight cost (Reg)"] ?? 0) },
-                      { name: "Freight Inc", value: Number(latestPoint?.["Resin Freight cost (Inc)"] ?? 0) },
-                      { name: "CIF Inc", value: Number(latestPoint?.["CIF(Incremental)"] ?? 0) },
-                      { name: "CIF Reg", value: Number(latestPoint?.["CIF(Regular)"] ?? 0) },
-                      { name: "Others", value: Number(latestPoint?.["Others"] ?? 0) },
-                      { name: "Final Price", value: Number(latestPoint?.["Final Price"] ?? 0) },
-                    ]}
-                    layout="vertical"
-                    margin={{ top: 8, right: 16, bottom: 8, left: 12 }}
-                  >
+                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis type="number" tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#d4d4d8" }} width={90} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="period"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickFormatter={compactPeriodTick}
+                      interval={0}
+                      minTickGap={10}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip content={<TrendTooltip />} />
-                    <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#eab308">
-                      <LabelList
-                        dataKey="value"
-                        position="right"
-                        formatter={(value) =>
-                          formatAmount(
-                            value as number | string | null | undefined
-                          )
-                        }
-                        className="fill-foreground text-[10px] font-semibold"
-                      />
-                    </Bar>
-                  </BarChart>
+                    {trendSeries
+                      .filter(
+                        (series) =>
+                          selectedTrendSeries === "all" || selectedTrendSeries === series.key
+                      )
+                      .map((series) => (
+                        <Line
+                          key={series.key}
+                          type="monotone"
+                          dataKey={series.key}
+                          stroke={series.color}
+                          strokeWidth={2.2}
+                          dot={false}
+                        />
+                      ))}
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>

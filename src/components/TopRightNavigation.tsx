@@ -8,6 +8,7 @@ type TopRightNavigationProps = {
 const ITEMS = [
   { label: "Home", path: "/" },
   { label: "Trends", path: "/trends" },
+  { label: "Trends 2", path: "/trends-2" },
   { label: "Simulation", path: "/simulation" },
 ];
 
@@ -16,13 +17,25 @@ const TopRightNavigation: React.FC<TopRightNavigationProps> = ({ search }) => {
   const activePath = location.pathname;
 
   const actionTarget =
-    activePath === "/" ? "/trends" : activePath === "/trends" ? "/simulation" : "/";
+    activePath === "/"
+      ? "/trends"
+      : activePath === "/trends"
+      ? "/trends-2"
+      : activePath === "/trends-2"
+      ? "/simulation"
+      : "/";
   const actionLabel =
-    activePath === "/" ? "Go to Trends" : activePath === "/trends" ? "Go to Simulation" : "Go to Home";
+    activePath === "/"
+      ? "Go to Trends"
+      : activePath === "/trends"
+      ? "Go to Trends 2"
+      : activePath === "/trends-2"
+      ? "Go to Simulation"
+      : "Go to Home";
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
-      <nav aria-label="Universal navigation" className="text-xs text-muted-foreground">
+      <nav aria-label="Universal navigation" className="text-sm text-muted-foreground">
         {ITEMS.map((item, index) => {
           const isActive = item.path === activePath;
           return (

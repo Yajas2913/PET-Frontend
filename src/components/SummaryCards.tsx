@@ -87,20 +87,6 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ country, supplierPrice,vend
                     </div>
                 </CardContent>
             </Card>
-            <Card className="py-4 px-4 hover:-translate-y-0.5 transition-transform">
-                <CardContent className="p-0 flex items-center gap-3.5">
-                    <span className="text-2xl shrink-0">📊</span>
-                    <div>
-                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Cost Components
-                        </span>
-                        <strong className="block mt-1 text-base font-bold text-foreground">
-                            {country.breakdown.length}
-                        </strong>
-                    </div>
-                </CardContent>
-            </Card>
-            
         </section>
     );
 };
