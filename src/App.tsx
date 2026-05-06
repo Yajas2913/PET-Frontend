@@ -6,6 +6,8 @@ import CurrentLayoutPage from "./pages/CurrentLayoutPage";
 import TrendsPage from "./pages/TrendsPage";
 import Trends2Page from "./pages/Trends2Page";
 import SimulationPage from "./pages/SimulationPage";
+import AppHeader from "./components/AppHeader";
+import StakeholderChecklist from "./components/StakeholderChecklist";
 
 import "./index.css";
 
@@ -16,7 +18,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const paramsString = searchParams.toString();
-    const url = new URL("http://localhost:8000/countries" + (paramsString ? `?${paramsString}` : ""));
+    const url = new URL("http://127.0.0.1:8000/countries" + (paramsString ? `?${paramsString}` : ""));
 
     // vendorBreakdowns are large; only fetch them once.
     const includeVendorBreakdowns = !hasLoadedVendorBreakdowns.current;
@@ -53,14 +55,18 @@ const App: React.FC = () => {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<HomePage data={data} />} />
-      <Route path="/deep-dive" element={<CurrentLayoutPage data={data} />} />
-      <Route path="/trends" element={<TrendsPage data={data} />} />
-      <Route path="/trends-2" element={<Trends2Page data={data} />} />
-      <Route path="/simulation" element={<SimulationPage data={data} />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <AppHeader />
+      <StakeholderChecklist />
+      <Routes>
+        <Route path="/" element={<HomePage data={data} />} />
+        <Route path="/deep-dive" element={<CurrentLayoutPage data={data} />} />
+        <Route path="/trends" element={<TrendsPage data={data} />} />
+        <Route path="/trends-2" element={<Trends2Page data={data} />} />
+        <Route path="/simulation" element={<SimulationPage data={data} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 };
 

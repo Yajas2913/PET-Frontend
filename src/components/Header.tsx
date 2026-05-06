@@ -12,11 +12,8 @@ const Header: React.FC<HeaderProps> = ({ month: _month, supplierPrice: _supplier
         <div className="flex items-center gap-3.5 mb-5">
             <img src={abinbevLogo} alt="AB InBev" className="brand-logo" />
             <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary mb-1">
-                    Procurement
-                </p>
                 <h1 className="text-xl font-bold leading-tight text-foreground">
-                    PET Resin Cost Explorer
+                    PET resin : Supplier Quotes vs Market Research
                 </h1>
             </div>
         </div>

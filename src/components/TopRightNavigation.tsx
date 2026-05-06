@@ -7,6 +7,7 @@ type TopRightNavigationProps = {
 
 const ITEMS = [
   { label: "Home", path: "/" },
+  { label: "Deep Dive", path: "/deep-dive" },
   { label: "Trends", path: "/trends" },
   { label: "Trends 2", path: "/trends-2" },
   { label: "Simulation", path: "/simulation" },
@@ -15,23 +16,6 @@ const ITEMS = [
 const TopRightNavigation: React.FC<TopRightNavigationProps> = ({ search }) => {
   const location = useLocation();
   const activePath = location.pathname;
-
-  const actionTarget =
-    activePath === "/"
-      ? "/trends"
-      : activePath === "/trends"
-      ? "/trends-2"
-      : activePath === "/trends-2"
-      ? "/simulation"
-      : "/";
-  const actionLabel =
-    activePath === "/"
-      ? "Go to Trends"
-      : activePath === "/trends"
-      ? "Go to Trends 2"
-      : activePath === "/trends-2"
-      ? "Go to Simulation"
-      : "Go to Home";
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
@@ -51,13 +35,6 @@ const TopRightNavigation: React.FC<TopRightNavigationProps> = ({ search }) => {
           );
         })}
       </nav>
-
-      <Link
-        to={{ pathname: actionTarget, search }}
-        className="inline-flex items-center justify-center rounded-lg border border-primary/25 bg-gradient-to-r from-primary to-yellow-300 px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-      >
-        {actionLabel}
-      </Link>
     </div>
   );
 };

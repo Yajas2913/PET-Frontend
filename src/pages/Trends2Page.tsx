@@ -209,15 +209,11 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
-      <div className="mx-auto w-full max-w-[1400px] mb-4">
-        <TopRightNavigation search={searchParams.toString()} />
-      </div>
-
       <RevealOnScroll>
         <section className="mx-auto w-full max-w-[1400px] space-y-4">
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl">Trends 2 - Historical View (All Suppliers)</CardTitle>
+              <CardTitle className="text-xl">Historical Supplier Comparison</CardTitle>
               <CardDescription>
                 {fixedDestination} vs selectable source countries from Jan 2025 to Mar 2026.
               </CardDescription>

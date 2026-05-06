@@ -273,9 +273,6 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
-      <div className="mx-auto w-full max-w-[1400px] mb-4">
-        <TopRightNavigation search={searchParams.toString()} />
-      </div>
       <section className="mx-auto w-full max-w-[1400px] space-y-4">
         <RevealOnScroll>
         <Card className="border-primary/10 bg-card/80 shadow-lg backdrop-blur">
@@ -283,7 +280,7 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Scenario Planning
             </p>
-            <h1 className="mt-2 text-[28px] font-extrabold text-foreground">
+            <h1 className="mt-2 text-xl font-extrabold text-foreground">
               Simulation Workspace
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
@@ -413,41 +410,6 @@ const SimulationPage: React.FC<SimulationPageProps> = ({ data }) => {
         </Card>
         </RevealOnScroll>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl">Monthly Vendor Breakdown Trend</CardTitle>
-            <CardDescription>
-              Resin index, financing, freight (regular/incremental), and others across months.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-border bg-card/40 p-3">
-              <div className="h-[320px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis
-                      dataKey="period"
-                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                      tickFormatter={compactPeriodTick}
-                      interval={0}
-                      minTickGap={10}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
-                    <Tooltip formatter={(value) => formatAmount(value as number | string | null | undefined)} />
-                    <Line type="monotone" dataKey="Resin Index" stroke="#3b82f6" strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="Resin Financing cost" stroke="#a855f7" strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="Resin Freight cost (Reg)" stroke="#06b6d4" strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="Resin Freight cost (Inc)" stroke="#f97316" strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="Others" stroke="#94a3b8" strokeWidth={2.2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </section>
     </div>
   );

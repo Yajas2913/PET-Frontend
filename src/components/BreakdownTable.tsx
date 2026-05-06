@@ -174,7 +174,7 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
           </Table>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="rounded-lg border border-border overflow-hidden">
             <button
               type="button"
