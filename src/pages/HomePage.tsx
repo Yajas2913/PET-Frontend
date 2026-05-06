@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import type { ApiResponse } from "../types";
-import Header from "../components/Header";
-import SidebarFilters from "../components/SidebarFilters";
 import SourceCountryCard from "../components/SourceCountryCard";
-import TopRightNavigation from "../components/TopRightNavigation";
 import RevealOnScroll from "../components/RevealOnScroll";
 import { getMonthOptions, getYearOptions } from "../lib/filterUtils";
 
@@ -12,14 +9,13 @@ type HomePageProps = {
   data: ApiResponse;
 };
 
-const DEFAULT_DESTINATIONS = ["El Salvador", "Brazil", "Honduras"];
+const DEFAULT_DESTINATIONS = ["Colombia", "El Salvador", "Brazil", "Honduras"];
 const TOTAL_LANDED_COST_KEY = "total landed cost";
 const DIFFERENCE_KEY = "difference";
-type SortKey = "default" | "tlc" | "delta";
+type SortKey = "tlc" | "supplierTlc" | "delta";
 type SortOrder = "desc" | "asc";
 
 const HomePage: React.FC<HomePageProps> = ({ data }) => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const destinationOptions = useMemo(() => {
@@ -35,7 +31,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const paramMonth = searchParams.get("month") ?? "";
   const paramYear = searchParams.get("year") ?? "";
   const paramSource = searchParams.get("source") ?? "";
-  const sortBy = (searchParams.get("sortBy") as SortKey) || "default";
+  const sortBy = (searchParams.get("sortBy") as SortKey) || "tlc";
   const sortOrder = (searchParams.get("sortOrder") as SortOrder) || "desc";
 
   const computedDefaultDestination = useMemo(() => {
@@ -107,6 +103,30 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
       });
     }
 
+    if (sortBy === "supplierTlc") {
+      return [...data.countries].sort((a, b) => {
+        const getSupplierTlcValue = (country: ApiResponse["countries"][number]) => {
+          const match = data.vendorBreakdowns.find(
+            (item) =>
+              item.destination === selectedDestination &&
+              item.sourceCountry === country.country &&
+              item.month === selectedMonth &&
+              item.year === selectedYear
+          );
+          const row = match?.rows.find(
+            (r) => r.label.trim().toLowerCase() === "total resin price abi virgin formula"
+          );
+          const amt = row?.amount;
+          return typeof amt === "number" ? amt : null;
+        };
+        const bySupplier = compareWithNullsLast(
+          getSupplierTlcValue(a),
+          getSupplierTlcValue(b)
+        );
+        return bySupplier !== 0 ? bySupplier : a.country.localeCompare(b.country);
+      });
+    }
+
     if (sortBy === "delta") {
       return [...data.countries].sort((a, b) => {
         const byDelta = compareWithNullsLast(
@@ -118,11 +138,13 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
     }
 
     return [...data.countries].sort((a, b) => {
-      if (a.country === "China") return -1;
-      if (b.country === "China") return 1;
-      return 0;
+      const byTlc = compareWithNullsLast(
+        getNumericMetric(a, TOTAL_LANDED_COST_KEY),
+        getNumericMetric(b, TOTAL_LANDED_COST_KEY)
+      );
+      return byTlc !== 0 ? byTlc : a.country.localeCompare(b.country);
     });
-  }, [data.countries, sortBy, sortOrder]);
+  }, [data.countries, data.vendorBreakdowns, sortBy, sortOrder, selectedDestination, selectedMonth, selectedYear]);
 
   const sourceOptions = useMemo(
     () => orderedCountries.map((country) => country.country),
@@ -174,93 +196,95 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
   }, [paramYear, paramMonth, selectedMonth, monthOptions, searchParams, setSearchParams]);
 
   return (
-    <div className="min-h-screen grid grid-cols-[380px_1fr] max-md:grid-cols-1">
-      <aside className="bg-card border-r border-border p-6 flex flex-col gap-5 overflow-hidden max-md:border-r-0 max-md:border-b">
-        <Header month={data.month} supplierPrice={data.supplierPrice} />
-        <SidebarFilters
-          destinationOptions={destinationOptions}
-          monthOptions={monthOptions}
-          yearOptions={yearOptions}
-          destination={selectedDestination}
-          month={selectedMonth}
-          year={selectedYear}
-          onDestinationChange={(value) => {
-            const next = new URLSearchParams(searchParams);
-            next.set("destination", value);
-            setSearchParams(next);
-          }}
-          onMonthChange={(value) => {
-            const next = new URLSearchParams(searchParams);
-            next.set("month", value);
-            setSearchParams(next);
-          }}
-          onYearChange={(value) => {
-            const next = new URLSearchParams(searchParams);
-            next.set("year", value);
-
-            const nextMonthOptions = getMonthOptions(value);
-            const currentMonth = searchParams.get("month") ?? "";
-            const nextMonth = nextMonthOptions.includes(currentMonth)
-              ? currentMonth
-              : nextMonthOptions[0] ?? "";
-            next.set("month", nextMonth);
-
-            setSearchParams(next);
-          }}
-        />
-      </aside>
-
-      <main className="p-7 flex flex-col gap-5 overflow-y-auto bg-gradient-to-b from-background to-[#0f0f0f] max-sm:p-4">
-        <TopRightNavigation search={searchParams.toString()} />
+    <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f]">
+      <main className="p-7 flex flex-col gap-5 overflow-y-auto max-sm:p-4 mx-auto max-w-[1400px]">
         <RevealOnScroll>
           <section className="space-y-4">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
-                Source Countries
-              </p>
-              <h2 className="text-xl font-extrabold text-foreground">
-                {selectedMonth} {selectedYear}
-              </h2>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Destination</label>
+              <select
+                value={selectedDestination}
+                onChange={(e) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("destination", e.target.value);
+                  setSearchParams(next);
+                }}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+              >
+                {destinationOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
-                Destination
-              </p>
-              <p className="text-lg font-bold text-primary">{selectedDestination}</p>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("month", e.target.value);
+                  setSearchParams(next);
+                }}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Sort by
-            </span>
-            <select
-              value={sortBy}
-              onChange={(event) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("sortBy", event.target.value);
-                setSearchParams(next);
-              }}
-              className="rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground"
-            >
-              <option value="default">Default</option>
-              <option value="tlc">TLC</option>
-              <option value="delta">Delta</option>
-            </select>
-            <select
-              value={sortOrder}
-              disabled={sortBy === "default"}
-              onChange={(event) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("sortOrder", event.target.value);
-                setSearchParams(next);
-              }}
-              className="rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="desc">High to Low</option>
-              <option value="asc">Low to High</option>
-            </select>
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Year</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("year", e.target.value);
+                  const nextMonthOptions = getMonthOptions(e.target.value);
+                  const currentMonth = searchParams.get("month") ?? "";
+                  const nextMonth = nextMonthOptions.includes(currentMonth)
+                    ? currentMonth
+                    : nextMonthOptions[0] ?? "";
+                  next.set("month", nextMonth);
+                  setSearchParams(next);
+                }}
+                className="h-9 rounded-md bg-secondary border border-border px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+              >
+                {yearOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div className="ml-auto flex items-end gap-2">
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Sort by</label>
+                <select
+                  value={sortBy}
+                  onChange={(event) => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set("sortBy", event.target.value);
+                    setSearchParams(next);
+                  }}
+                  className="h-9 rounded-md border border-border bg-card px-2.5 text-sm text-foreground"
+                >
+                  <option value="tlc">Market Research TLC</option>
+                  <option value="supplierTlc">Supplier TLC</option>
+                  <option value="delta">Delta</option>
+                </select>
+              </div>
+              <select
+                value={sortOrder}
+                onChange={(event) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("sortOrder", event.target.value);
+                  setSearchParams(next);
+                }}
+                className="h-9 rounded-md border border-border bg-card px-2.5 text-sm text-foreground"
+              >
+                <option value="desc">High to Low</option>
+                <option value="asc">Low to High</option>
+              </select>
+            </div>
           </div>
 
           <div className="inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-200">
@@ -269,6 +293,12 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
           </div>
 
           <div className="space-y-3">
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] items-center gap-3 px-4 max-sm:hidden">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Source Country</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Market Research TLC</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Supplier TLC</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Delta</p>
+            </div>
             {orderedCountries.map((country) => (
               <RevealOnScroll key={country.country} y={14}>
                 <SourceCountryCard
@@ -283,21 +313,6 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     next.set("source", country.country);
                     setSearchParams(next);
                   }}
-                  onDeepDive={
-                    selectedSource === country.country
-                      ? () => {
-                          const next = new URLSearchParams(searchParams);
-                          next.set("destination", selectedDestination);
-                          next.set("month", selectedMonth);
-                          next.set("year", selectedYear);
-                          next.set("source", selectedSource);
-                          navigate({
-                            pathname: "/deep-dive",
-                            search: next.toString(),
-                          });
-                        }
-                      : undefined
-                  }
                 />
               </RevealOnScroll>
             ))}

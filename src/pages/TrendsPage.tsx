@@ -19,9 +19,6 @@ const TrendsPage: React.FC<TrendsPageProps> = ({ data }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
-      <div className="mx-auto w-full max-w-[1400px] mb-4">
-        <TopRightNavigation search={searchParams.toString()} />
-      </div>
       <RevealOnScroll>
         <VendorBreakdownDashboard
           vendorBreakdowns={data.vendorBreakdowns ?? []}

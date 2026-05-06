@@ -190,8 +190,6 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
   return (
     <div className="min-h-screen">
       <main className="p-7 flex flex-col gap-5 overflow-y-auto bg-gradient-to-b from-background to-[#0f0f0f] max-sm:p-4">
-        <Header month={data.month} supplierPrice={data.supplierPrice} />
-        <TopRightNavigation search={searchParams.toString()} />
 
         <RevealOnScroll>
           <section className="grid grid-cols-[minmax(0,1fr)_320px] items-stretch gap-4 max-md:grid-cols-1">
@@ -201,7 +199,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                   Selected Source
                 </p>
-                <h2 className="text-[32px] font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
                   {activeCountry?.country ?? "—"}
                 </h2>
               </div>
@@ -253,7 +251,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                 Selected Destination
               </p>
-              <h3 className="text-[28px] font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+              <h3 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
                 {selectedDestination}
               </h3>
               <p className="mt-3 text-sm text-muted-foreground">

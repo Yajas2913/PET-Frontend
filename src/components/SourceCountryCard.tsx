@@ -67,7 +67,6 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
 
   const marketTlcDisplay = formatTlc(marketTlc);
   const supplierTlcDisplay = formatTlc(supplierTlc);
-  const hasSupplierTlc = supplierTlc !== null && supplierTlc !== "";
   const deltaDisplay =
     deltaVsSupplier === null
       ? "N/A"
@@ -82,60 +81,32 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
       } ${isSelected ? "ring-2 ring-primary/60 border-primary/40" : ""}`}
     >
       <CardContent className="p-4">
-        <div className="grid grid-cols-[1.5fr_1fr_1fr_auto] items-center gap-3 max-sm:grid-cols-[1fr_1fr]">
+        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] items-center gap-3 max-sm:grid-cols-[1fr_1fr]">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Source Country
-            </p>
-            <h3 className="mt-1 truncate text-lg font-extrabold text-foreground">
+            <h3 className="truncate text-lg font-extrabold text-foreground">
               {country.country}
             </h3>
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Market Research TLC
-            </p>
-            <p className="mt-1 text-base font-bold text-primary">
+            <p className="text-base font-bold text-primary">
               {marketTlcDisplay}
             </p>
           </div>
 
-          <div className="max-sm:col-span-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Supplier TLC
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-base font-bold text-primary">{supplierTlcDisplay}</p>
-              {hasSupplierTlc ? (
-                <>
-                  <span className="text-muted-foreground">|</span>
-                  <p
-                    className={`text-sm font-semibold ${
-                      isSaving ? "text-green-500" : "text-red-500"
-                    }`}
-                  >
-                    vs Supplier: {deltaDisplay}
-                  </p>
-                </>
-              ) : null}
-            </div>
+          <div>
+            <p className="text-base font-bold text-primary">{supplierTlcDisplay}</p>
           </div>
 
-          {onDeepDive ? (
-            <div className="max-sm:col-span-2 flex justify-end">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDeepDive();
-                }}
-                className="inline-flex items-center justify-center rounded-xl border border-primary/25 bg-gradient-to-r from-primary to-yellow-300 px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
-              >
-                Source Country Deep Dive
-              </button>
-            </div>
-          ) : null}
+          <div>
+            <p
+              className={`text-base font-semibold ${
+                isSaving ? "text-green-500" : deltaVsSupplier === null ? "text-muted-foreground" : "text-red-500"
+              }`}
+            >
+              {deltaDisplay}
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

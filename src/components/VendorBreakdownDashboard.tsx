@@ -304,7 +304,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
       <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-8 max-sm:px-4">
         <Card className="mx-auto w-full max-w-[1400px] animate-fade-in-up shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Vendor Breakdown Trends</CardTitle>
+            <CardTitle className="text-xl">Historical view of supplier quote vs market research</CardTitle>
             <CardDescription>No vendor breakdown data available for the current filters.</CardDescription>
           </CardHeader>
         </Card>
@@ -319,11 +319,8 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           <CardContent className="flex flex-wrap items-end justify-between gap-5 p-6 max-sm:p-4">
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Supplier Sheet Details
-                </p>
-                <h1 className="mt-2 text-[28px] font-extrabold text-foreground">
-                  Vendor Breakdown Trends
+                <h1 className="mt-2 text-xl font-extrabold text-foreground">
+                  Historical view of supplier quote vs market research
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
                   Explore monthly supplier cost components and run quick simulations without leaving the current analysis flow.
@@ -335,7 +332,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                     Selected Source
                   </p>
-                  <h2 className="text-[32px] font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                  <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
                     {selectedSourceCountry || "All Sources"}
                   </h2>
                 </div>
@@ -343,7 +340,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                     Selected Destination
                   </p>
-                  <h2 className="text-[32px] font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                  <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
                     {selectedDestination || "All Destinations"}
                   </h2>
                 </div>
@@ -375,7 +372,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="border-primary/20 py-2 px-2 shadow-lg">
             <CardHeader className="pb-2 space-y-1">
-              <CardDescription>Final Price (March 2026)</CardDescription>
+              <CardDescription>Supplier TLC (March 2026)</CardDescription>
               <CardTitle className="text-3xl font-extrabold text-foreground">
                 {formatAmount(latestFinalPrice)}
               </CardTitle>
@@ -398,7 +395,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
 
           <Card className="border-yellow-500/20 py-2 px-2 shadow-lg">
             <CardHeader className="pb-2 space-y-1">
-              <CardDescription>Total Landed Cost (PET Resin) (March 2026)</CardDescription>
+              <CardDescription>Market Research TLC (March 2026)</CardDescription>
               <CardTitle className="text-3xl font-extrabold text-primary">
                 {formatAmount(latestFormula)}
               </CardTitle>
@@ -476,7 +473,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Monthly Vendor Breakdown Trend</CardTitle>
+            <CardTitle className="text-xl">Supplier cost components breakdown</CardTitle>
             <CardDescription>
               Resin index, financing, freight (regular/incremental), and others across months.
             </CardDescription>
