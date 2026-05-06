@@ -60,10 +60,12 @@ const MONTH_ORDER = [
   "December",
 ];
 
-const RANGE_START_YEAR = 2018;
-const RANGE_START_MONTH_INDEX = 6; // July
+const RANGE_START_YEAR = 2025;
+const RANGE_START_MONTH_INDEX = 0; // January
 const RANGE_END_YEAR = 2026;
 const RANGE_END_MONTH_INDEX = 2; // March
+const DOTTED_START_YEAR = 2026;
+const DOTTED_START_MONTH_INDEX = 2; // March
 
 const NUMERIC_SERIES = [
   "Resin Index",
@@ -118,6 +120,10 @@ const compactPeriodTick = (value: string) => {
 };
 
 const monthIndex = (month: string) => MONTH_ORDER.indexOf(month);
+const is2025OrLater = (year: number) => year >= 2025;
+const isDottedPeriod = (year: number, monthIdx: number) =>
+  year > DOTTED_START_YEAR ||
+  (year === DOTTED_START_YEAR && monthIdx >= DOTTED_START_MONTH_INDEX);
 
 const sortBreakdowns = (rows: VendorBreakdownEntry[]) =>
   [...rows].sort((a, b) => {
@@ -204,7 +210,10 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
 
   const baseTrendData = useMemo(() => buildTrendData(filteredEntries), [filteredEntries]);
 
-  const trendData = baseTrendData;
+  const trendData = useMemo(
+    () => baseTrendData.filter((row) => is2025OrLater(Number(row.year))),
+    [baseTrendData]
+  );
 
   const latestPoint = trendData[trendData.length - 1];
   const previousPoint = trendData[trendData.length - 2];
@@ -293,11 +302,53 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
 
       return {
         period: period.period,
+        year: period.year,
+        monthIndex: period.monthIndex,
         marketResearchValue,
         supplierTlcValue,
       };
     });
   }, [vendorBreakdowns, selectedDestination, selectedSourceCountry]);
+
+  const destinationSourceMonthlyStyled = useMemo(
+    () =>
+      destinationSourceMonthly.map((row, index) => {
+        const dotted = isDottedPeriod(row.year, row.monthIndex);
+        const next = destinationSourceMonthly[index + 1];
+        const nextIsDotted =
+          next !== undefined && isDottedPeriod(next.year, next.monthIndex);
+        return {
+          ...row,
+          marketResearchValueSolid: dotted ? null : row.marketResearchValue,
+          marketResearchValueDotted:
+            dotted || nextIsDotted ? row.marketResearchValue : null,
+          supplierTlcValueSolid: dotted ? null : row.supplierTlcValue,
+          supplierTlcValueDotted:
+            dotted || nextIsDotted ? row.supplierTlcValue : null,
+        };
+      }),
+    [destinationSourceMonthly]
+  );
+
+  const trendDataStyled = useMemo(
+    () =>
+      trendData.map((row, index) => {
+        const monthIdx = monthIndex(String(row.month));
+        const dotted = isDottedPeriod(Number(row.year), monthIdx);
+        const next = trendData[index + 1];
+        const nextMonthIdx = next ? monthIndex(String(next.month)) : -1;
+        const nextIsDotted =
+          next !== undefined && isDottedPeriod(Number(next.year), nextMonthIdx);
+        const styledRow: Record<string, string | number | null> = { ...row };
+        trendSeries.forEach((series) => {
+          const value = row[series.key] as number;
+          styledRow[`${series.key}Solid`] = dotted ? null : value;
+          styledRow[`${series.key}Dotted`] = dotted || nextIsDotted ? value : null;
+        });
+        return styledRow;
+      }),
+    [trendData, trendSeries]
+  );
 
   if (!trendData.length) {
     return (
@@ -427,7 +478,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           <CardHeader>
             <CardTitle className="text-xl">Monthly Market Research TLC vs Supplier TLC</CardTitle>
             <CardDescription>
-              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jul 2018 to Mar 2026.
+              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jan 2025 to Mar 2026.
             </CardDescription>
             <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
               <span aria-hidden>⚠</span>
@@ -438,7 +489,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
             <div className="rounded-xl border border-border bg-card/40 p-3">
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={destinationSourceMonthly} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                  <LineChart data={destinationSourceMonthlyStyled} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                     <XAxis
                       dataKey="period"
@@ -453,19 +504,41 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     <Tooltip content={<TrendTooltip />} />
                     <Line
                       type="monotone"
-                      dataKey="marketResearchValue"
+                      dataKey="marketResearchValueSolid"
                       name="Market Research TLC"
                       stroke="#eab308"
                       strokeWidth={2.5}
                       dot={false}
+                      connectNulls
                     />
                     <Line
                       type="monotone"
-                      dataKey="supplierTlcValue"
+                      dataKey="marketResearchValueDotted"
+                      name="Market Research TLC"
+                      stroke="#eab308"
+                      strokeWidth={2.5}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="supplierTlcValueSolid"
                       name="Supplier TLC"
                       stroke="#22c55e"
                       strokeWidth={2.5}
                       dot={false}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="supplierTlcValueDotted"
+                      name="Supplier TLC"
+                      stroke="#22c55e"
+                      strokeWidth={2.5}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      connectNulls
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -512,7 +585,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
             <div className="rounded-xl border border-border bg-card/40 p-3">
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                  <LineChart data={trendDataStyled} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                     <XAxis
                       dataKey="period"
@@ -531,14 +604,25 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                           selectedTrendSeries === "all" || selectedTrendSeries === series.key
                       )
                       .map((series) => (
-                        <Line
-                          key={series.key}
-                          type="monotone"
-                          dataKey={series.key}
-                          stroke={series.color}
-                          strokeWidth={2.2}
-                          dot={false}
-                        />
+                        <React.Fragment key={series.key}>
+                          <Line
+                            type="monotone"
+                            dataKey={`${series.key}Solid`}
+                            stroke={series.color}
+                            strokeWidth={2.2}
+                            dot={false}
+                            connectNulls
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey={`${series.key}Dotted`}
+                            stroke={series.color}
+                            strokeWidth={2.2}
+                            strokeDasharray="6 4"
+                            dot={false}
+                            connectNulls
+                          />
+                        </React.Fragment>
                       ))}
                   </LineChart>
                 </ResponsiveContainer>

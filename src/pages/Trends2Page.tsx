@@ -33,10 +33,13 @@ const MONTH_ORDER = [
   "November",
   "December",
 ];
-const RANGE_START_YEAR = 2018;
-const RANGE_START_MONTH_INDEX = 6; // July
+const RANGE_START_YEAR = 2025;
+const RANGE_START_MONTH_INDEX = 0; // January
 const RANGE_END_YEAR = 2026;
 const RANGE_END_MONTH_INDEX = 2; // March
+const DOTTED_START_YEAR = 2026;
+const DOTTED_START_MONTH_INDEX = 2; // March
+const MAX_SELECTED_COUNTRIES = 3;
 
 const LINE_COLORS = [
   "#22c55e",
@@ -92,10 +95,14 @@ const buildMonthlyPeriods = () => {
   return periods;
 };
 
+const isDottedPeriod = (year: number, monthIndex: number) =>
+  year > DOTTED_START_YEAR ||
+  (year === DOTTED_START_YEAR && monthIndex >= DOTTED_START_MONTH_INDEX);
+
 const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
   const [searchParams] = useSearchParams();
   const fixedDestination = "Colombia";
-  const [selectedSupplier, setSelectedSupplier] = useState<string>("China");
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(["China"]);
 
   const destinationEntries = useMemo(
     () =>
@@ -136,7 +143,11 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
     });
 
     return periods.map((periodItem, idx) => {
-      const row: Record<string, string | number | null> = { period: periodItem.period };
+      const row: Record<string, string | number | null> = {
+        period: periodItem.period,
+        year: periodItem.year,
+        monthIndex: periodItem.monthIndex,
+      };
       const seasonalWave = Math.sin((idx / 12) * Math.PI * 2);
       const secondaryWave = Math.sin((idx / 6) * Math.PI * 2 + 0.8);
       const pulse = idx % 17 === 0 ? 14 : idx % 11 === 0 ? -10 : 0;
@@ -159,6 +170,43 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
     });
   }, [allSources, data.countries, destinationEntries]);
 
+  const displayedSources = useMemo(() => {
+    if (!selectedSuppliers.length) return allSources.slice(0, MAX_SELECTED_COUNTRIES);
+    return selectedSuppliers.slice(0, MAX_SELECTED_COUNTRIES);
+  }, [allSources, selectedSuppliers]);
+
+  const chartDataWithStyles = useMemo(
+    () =>
+      chartData.map((row, index) => {
+        const year = Number(row.year);
+        const monthIndex = Number(row.monthIndex);
+        const dotted = isDottedPeriod(year, monthIndex);
+        const next = chartData[index + 1];
+        const nextIsDotted =
+          next !== undefined &&
+          isDottedPeriod(Number(next.year), Number(next.monthIndex));
+        const nextRow: Record<string, string | number | null> = { ...row };
+        displayedSources.forEach((source) => {
+          const value = row[source];
+          nextRow[`${source}Solid`] = dotted ? null : (value as number | null);
+          // Keep the immediate pre-dotted point in dashed series to create a visible dashed segment.
+          nextRow[`${source}Dotted`] =
+            dotted || nextIsDotted ? (value as number | null) : null;
+        });
+        return nextRow;
+      }),
+    [chartData, displayedSources]
+  );
+
+  const handleSupplierClick = (source: string, ctrlOrMetaPressed: boolean) => {
+    setSelectedSuppliers((current) => {
+      if (!ctrlOrMetaPressed) return [source];
+      if (current.includes(source)) return current.filter((item) => item !== source);
+      if (current.length >= MAX_SELECTED_COUNTRIES) return current;
+      return [...current, source];
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
       <div className="mx-auto w-full max-w-[1400px] mb-4">
@@ -171,27 +219,16 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
             <CardHeader>
               <CardTitle className="text-xl">Trends 2 - Historical View (All Suppliers)</CardTitle>
               <CardDescription>
-                {fixedDestination} vs all available source countries from Jul 2018 to Mar 2026.
+                {fixedDestination} vs selectable source countries from Jan 2025 to Mar 2026.
               </CardDescription>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSupplier("all")}
-                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-                    selectedSupplier === "all"
-                      ? "border-primary/40 bg-primary/15 text-primary"
-                      : "border-border bg-card/40 text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  All Suppliers
-                </button>
                 {allSources.map((source) => (
                   <button
                     key={source}
                     type="button"
-                    onClick={() => setSelectedSupplier(source)}
+                    onClick={(event) => handleSupplierClick(source, event.ctrlKey || event.metaKey)}
                     className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-                      selectedSupplier === source
+                      selectedSuppliers.includes(source)
                         ? "border-primary/40 bg-primary/15 text-primary"
                         : "border-border bg-card/40 text-muted-foreground hover:text-foreground"
                     }`}
@@ -200,6 +237,10 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                   </button>
                 ))}
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                Select up to {MAX_SELECTED_COUNTRIES} countries. Use Ctrl+Click (Cmd+Click on Mac)
+                to add or remove multiple countries.
+              </p>
               <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
                 <span aria-hidden>⚠</span>
                 <span>Historical values are dummy/simulated for trends view.</span>
@@ -209,7 +250,7 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
               <div className="rounded-xl border border-border bg-card/40 p-3">
                 <div className="h-[420px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                    <LineChart data={chartDataWithStyles} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                       <XAxis
                         dataKey="period"
@@ -231,22 +272,29 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                           formatAmount(value as number | string | null | undefined)
                         }
                       />
-                      {allSources
-                        .filter(
-                          (source) => selectedSupplier === "all" || selectedSupplier === source
-                        )
-                        .map((source, index) => (
+                      {displayedSources.map((source, index) => (
+                        <React.Fragment key={source}>
                           <Line
-                            key={source}
                             type="monotone"
-                            dataKey={source}
+                            dataKey={`${source}Solid`}
                             name={source}
                             stroke={LINE_COLORS[index % LINE_COLORS.length]}
                             strokeWidth={2.4}
                             dot={false}
                             connectNulls
                           />
-                        ))}
+                          <Line
+                            type="monotone"
+                            dataKey={`${source}Dotted`}
+                            name={source}
+                            stroke={LINE_COLORS[index % LINE_COLORS.length]}
+                            strokeWidth={2.4}
+                            strokeDasharray="6 4"
+                            dot={false}
+                            connectNulls
+                          />
+                        </React.Fragment>
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
