@@ -10,6 +10,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type VendorBreakdownItem = {
   label: string;
@@ -79,6 +89,7 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
 }) => {
   const [showMarketResearchTable, setShowMarketResearchTable] = useState(false);
   const [showSupplierSheetTable, setShowSupplierSheetTable] = useState(false);
+  const [showCommonComponentChart, setShowCommonComponentChart] = useState(false);
 
   const toNumber = (value: string | number | null | undefined) => {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -117,6 +128,16 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
       }))
       .filter((row) => row.marketValue !== undefined || row.supplierValue !== undefined);
   }, [breakdown, vendorBreakdown]);
+
+  const componentChartData = useMemo(
+    () =>
+      comparisonRows.map((row) => ({
+        component: row.component,
+        marketValue: row.marketValue ?? 0,
+        supplierValue: row.supplierValue ?? 0,
+      })),
+    [comparisonRows]
+  );
 
   return (
     <Card className="animate-fade-in-up shadow-lg">
@@ -172,6 +193,77 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-border overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowCommonComponentChart((prev) => !prev)}
+            className="flex w-full items-center justify-between border-l-4 border-primary/40 bg-card/40 px-3 py-2 text-left"
+          >
+            <div>
+              <p className="text-sm font-semibold tracking-wide text-foreground">
+                Common Component - Stacked View
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Stacked column chart using the same values shown in the common component table.
+              </p>
+            </div>
+            <span className="text-base font-bold text-primary/90" aria-hidden>
+              {showCommonComponentChart ? "-" : "+"}
+            </span>
+          </button>
+          {showCommonComponentChart ? (
+            <div className="border-t border-border bg-card/30 p-3">
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={componentChartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis
+                      dataKey="component"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      angle={-18}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: "#a1a1aa" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={52}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatAmount(value as number | string | null | undefined)}
+                      contentStyle={{
+                        background: "rgba(2,8,23,0.96)",
+                        border: "1px solid rgba(148,163,184,0.35)",
+                        borderRadius: "12px",
+                        color: "#e2e8f0",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
+                    <Bar
+                      dataKey="marketValue"
+                      name="Market Research"
+                      stackId="commonComponent"
+                      fill="#003A70"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="supplierValue"
+                      name="Supplier"
+                      stackId="commonComponent"
+                      fill="#FFB81C"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">

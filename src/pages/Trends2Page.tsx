@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatAmount } from "../types";
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -33,25 +34,28 @@ const MONTH_ORDER = [
   "November",
   "December",
 ];
-const RANGE_START_YEAR = 2025;
+const RANGE_START_YEAR = 2026;
 const RANGE_START_MONTH_INDEX = 0; // January
 const RANGE_END_YEAR = 2026;
 const RANGE_END_MONTH_INDEX = 2; // March
 const DOTTED_START_YEAR = 2026;
 const DOTTED_START_MONTH_INDEX = 2; // March
-const MAX_SELECTED_COUNTRIES = 3;
+
+const ABI_CHART_COLORS = [
+  "#003A70", // AB InBev Primary Blue
+  "#00A3E0", // AB InBev Light Blue
+  "#FFB81C", // AB InBev Gold
+  "#2E5EAA",
+  "#4F86C6",
+  "#6FA8DC",
+  "#94A3B8",
+  "#001F3F",
+  "#5B88C3",
+  "#89B6E3",
+];
 
 const LINE_COLORS = [
-  "#22c55e",
-  "#eab308",
-  "#38bdf8",
-  "#a855f7",
-  "#f97316",
-  "#94a3b8",
-  "#f43f5e",
-  "#10b981",
-  "#60a5fa",
-  "#fb7185",
+  ...ABI_CHART_COLORS,
 ];
 
 const parseNumericAmount = (value: string | number | null | undefined) => {
@@ -72,11 +76,10 @@ const getSupplierTlc = (entry: VendorBreakdownEntry) => {
   return parseNumericAmount(row?.amount);
 };
 
-const compactPeriodTick = (value: string) => {
+const shortMonthTick = (value: string) => {
   const [month, year] = value.split(" ");
   if (!month || !year) return value;
-  if (month !== "Jan" && month !== "Jul") return "";
-  return `${month} '${year.slice(-2)}`;
+  return `${month}-${year.slice(-2)}`;
 };
 
 const buildMonthlyPeriods = () => {
@@ -98,6 +101,39 @@ const buildMonthlyPeriods = () => {
 const isDottedPeriod = (year: number, monthIndex: number) =>
   year > DOTTED_START_YEAR ||
   (year === DOTTED_START_YEAR && monthIndex >= DOTTED_START_MONTH_INDEX);
+
+const Trends2Tooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const uniqueRows = payload.reduce((acc: any[], item: any) => {
+    const existing = acc.find((row) => row.name === item.name);
+    if (!existing) {
+      acc.push(item);
+      return acc;
+    }
+    if ((existing.value === null || existing.value === undefined) && item.value !== null && item.value !== undefined) {
+      const idx = acc.indexOf(existing);
+      acc[idx] = item;
+    }
+    return acc;
+  }, []);
+  return (
+    <div className="rounded-xl border border-primary/20 bg-[#020817]/95 px-4 py-3 shadow-2xl">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">{label}</p>
+      <div className="space-y-1.5">
+        {uniqueRows.map((item: any) => (
+          <div key={item.dataKey} className="flex items-center justify-between gap-6 text-sm">
+            <span className="font-medium" style={{ color: item.color }}>
+              {item.name}
+            </span>
+            <span className="font-semibold text-slate-100">
+              {formatAmount(item.value as number | string | null | undefined)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
   const [searchParams] = useSearchParams();
@@ -171,8 +207,8 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
   }, [allSources, data.countries, destinationEntries]);
 
   const displayedSources = useMemo(() => {
-    if (!selectedSuppliers.length) return allSources.slice(0, MAX_SELECTED_COUNTRIES);
-    return selectedSuppliers.slice(0, MAX_SELECTED_COUNTRIES);
+    if (!selectedSuppliers.length) return allSources;
+    return selectedSuppliers;
   }, [allSources, selectedSuppliers]);
 
   const chartDataWithStyles = useMemo(
@@ -202,10 +238,11 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
     setSelectedSuppliers((current) => {
       if (!ctrlOrMetaPressed) return [source];
       if (current.includes(source)) return current.filter((item) => item !== source);
-      if (current.length >= MAX_SELECTED_COUNTRIES) return current;
       return [...current, source];
     });
   };
+
+  const allSelected = allSources.length > 0 && allSources.every((source) => selectedSuppliers.includes(source));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
@@ -215,9 +252,27 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
             <CardHeader>
               <CardTitle className="text-xl">Historical Supplier Comparison</CardTitle>
               <CardDescription>
-                {fixedDestination} vs selectable source countries from Jan 2025 to Mar 2026.
+                {fixedDestination} vs selectable source countries from Jan 2026 to Mar 2026.
               </CardDescription>
               <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSuppliers(allSources)}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                    allSelected
+                      ? "border-primary/40 bg-primary/15 text-primary"
+                      : "border-border bg-card/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSuppliers([])}
+                  className="rounded-md border border-border bg-card/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+                >
+                  Clear
+                </button>
                 {allSources.map((source) => (
                   <button
                     key={source}
@@ -234,8 +289,8 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Select up to {MAX_SELECTED_COUNTRIES} countries. Use Ctrl+Click (Cmd+Click on Mac)
-                to add or remove multiple countries.
+                Use Ctrl+Click (Cmd+Click on Mac) to add or remove multiple countries,
+                or click Select All.
               </p>
               <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
                 <span aria-hidden>⚠</span>
@@ -251,9 +306,11 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                       <XAxis
                         dataKey="period"
                         tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                        tickFormatter={compactPeriodTick}
+                        tickFormatter={shortMonthTick}
                         interval={0}
                         minTickGap={10}
+                        tickMargin={8}
+                        padding={{ left: 8, right: 24 }}
                         tickLine={false}
                         axisLine={false}
                       />
@@ -263,11 +320,8 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                         axisLine={false}
                         width={48}
                       />
-                      <Tooltip
-                        formatter={(value) =>
-                          formatAmount(value as number | string | null | undefined)
-                        }
-                      />
+                      <Tooltip content={<Trends2Tooltip />} />
+                      <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
                       {displayedSources.map((source, index) => (
                         <React.Fragment key={source}>
                           <Line
@@ -288,6 +342,7 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                             strokeDasharray="6 4"
                             dot={false}
                             connectNulls
+                            legendType="none"
                           />
                         </React.Fragment>
                       ))}

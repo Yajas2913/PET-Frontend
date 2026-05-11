@@ -1,8 +1,12 @@
 import React, { useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
+  LabelList,
   ResponsiveContainer,
   LineChart,
   Line,
+  Legend,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -60,12 +64,17 @@ const MONTH_ORDER = [
   "December",
 ];
 
-const RANGE_START_YEAR = 2025;
+const RANGE_START_YEAR = 2026;
 const RANGE_START_MONTH_INDEX = 0; // January
 const RANGE_END_YEAR = 2026;
 const RANGE_END_MONTH_INDEX = 2; // March
 const DOTTED_START_YEAR = 2026;
 const DOTTED_START_MONTH_INDEX = 2; // March
+const ABI_PRIMARY_BLUE = "#003A70";
+const ABI_LIGHT_BLUE = "#00A3E0";
+const ABI_GOLD = "#FFB81C";
+const ABI_DARK_NAVY = "#001F3F";
+const ABI_NEUTRAL = "#94A3B8";
 
 const NUMERIC_SERIES = [
   "Resin Index",
@@ -111,16 +120,14 @@ const buildMonthlyPeriods = () => {
   return periods;
 };
 
-const compactPeriodTick = (value: string) => {
+const shortMonthTick = (value: string) => {
   const [month, year] = value.split(" ");
   if (!month || !year) return value;
-  // Keep axis readable: show only January and July anchors.
-  if (month !== "Jan" && month !== "Jul") return "";
-  return `${month} '${year.slice(-2)}`;
+  return `${month}-${year.slice(-2)}`;
 };
 
 const monthIndex = (month: string) => MONTH_ORDER.indexOf(month);
-const is2025OrLater = (year: number) => year >= 2025;
+const is2026Only = (year: number) => year === 2026;
 const isDottedPeriod = (year: number, monthIdx: number) =>
   year > DOTTED_START_YEAR ||
   (year === DOTTED_START_YEAR && monthIdx >= DOTTED_START_MONTH_INDEX);
@@ -173,17 +180,29 @@ const buildTrendData = (entries: VendorBreakdownEntry[]) => {
 
 const TrendTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  const uniqueRows = payload.reduce((acc: any[], item: any) => {
+    const existing = acc.find((row) => row.name === item.name);
+    if (!existing) {
+      acc.push(item);
+      return acc;
+    }
+    if ((existing.value === null || existing.value === undefined) && item.value !== null && item.value !== undefined) {
+      const idx = acc.indexOf(existing);
+      acc[idx] = item;
+    }
+    return acc;
+  }, []);
 
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-2xl">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+    <div className="rounded-xl border border-primary/20 bg-[#020817]/95 px-4 py-3 shadow-2xl">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">{label}</p>
       <div className="space-y-1.5">
-        {payload.map((item: any) => (
+        {uniqueRows.map((item: any) => (
           <div key={item.dataKey} className="flex items-center justify-between gap-6 text-sm">
-            <span className="font-medium text-foreground" style={{ color: item.color }}>
+            <span className="font-medium" style={{ color: item.color }}>
               {item.name}
             </span>
-            <span className="font-semibold text-foreground">{formatAmount(item.value)}</span>
+            <span className="font-semibold text-slate-100">{formatAmount(item.value)}</span>
           </div>
         ))}
       </div>
@@ -211,7 +230,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   const baseTrendData = useMemo(() => buildTrendData(filteredEntries), [filteredEntries]);
 
   const trendData = useMemo(
-    () => baseTrendData.filter((row) => is2025OrLater(Number(row.year))),
+    () => baseTrendData.filter((row) => is2026Only(Number(row.year))),
     [baseTrendData]
   );
 
@@ -224,11 +243,11 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   const delta = latestFinalPrice - previousFinalPrice;
   const formulaDelta = latestFormula - previousFormula;
   const trendSeries = [
-    { key: "Resin Index", color: "#3b82f6" },
-    { key: "Resin Financing cost", color: "#a855f7" },
-    { key: "Resin Freight cost (Reg)", color: "#06b6d4" },
-    { key: "Resin Freight cost (Inc)", color: "#f97316" },
-    { key: "Others", color: "#94a3b8" },
+    { key: "Resin Index", color: ABI_PRIMARY_BLUE },
+    { key: "Resin Financing cost", color: ABI_LIGHT_BLUE },
+    { key: "Resin Freight cost (Reg)", color: ABI_GOLD },
+    { key: "Resin Freight cost (Inc)", color: ABI_DARK_NAVY },
+    { key: "Others", color: ABI_NEUTRAL },
   ] as const;
 
   const destinationSourceMonthly = useMemo(() => {
@@ -349,6 +368,27 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
       }),
     [trendData, trendSeries]
   );
+
+  const averageMonthlyTlcData = useMemo(() => {
+    if (!destinationSourceMonthly.length) return [];
+    const totals = destinationSourceMonthly.reduce(
+      (acc, row) => {
+        return {
+          marketResearch: acc.marketResearch + Number(row.marketResearchValue ?? 0),
+          supplier: acc.supplier + Number(row.supplierTlcValue ?? 0),
+        };
+      },
+      { marketResearch: 0, supplier: 0 }
+    );
+    const count = destinationSourceMonthly.length;
+    return [
+      {
+        label: "Average",
+        averageMarketResearchTlc: Number((totals.marketResearch / count).toFixed(2)),
+        averageSupplierTlc: Number((totals.supplier / count).toFixed(2)),
+      },
+    ];
+  }, [destinationSourceMonthly]);
 
   if (!trendData.length) {
     return (
@@ -475,7 +515,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           <CardHeader>
             <CardTitle className="text-xl">Monthly Market Research TLC vs Supplier TLC</CardTitle>
             <CardDescription>
-              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jan 2025 to Mar 2026.
+              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jan 2026 to Mar 2026.
             </CardDescription>
             <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
               <span aria-hidden>⚠</span>
@@ -491,19 +531,22 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     <XAxis
                       dataKey="period"
                       tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                      tickFormatter={compactPeriodTick}
+                      tickFormatter={shortMonthTick}
                       interval={0}
                       minTickGap={10}
+                      tickMargin={8}
+                      padding={{ left: 8, right: 24 }}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip content={<TrendTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
                     <Line
                       type="monotone"
                       dataKey="marketResearchValueSolid"
                       name="Market Research TLC"
-                      stroke="#eab308"
+                      stroke={ABI_GOLD}
                       strokeWidth={2.5}
                       dot={false}
                       connectNulls
@@ -512,17 +555,18 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                       type="monotone"
                       dataKey="marketResearchValueDotted"
                       name="Market Research TLC"
-                      stroke="#eab308"
+                      stroke={ABI_GOLD}
                       strokeWidth={2.5}
                       strokeDasharray="6 4"
                       dot={false}
                       connectNulls
+                      legendType="none"
                     />
                     <Line
                       type="monotone"
                       dataKey="supplierTlcValueSolid"
                       name="Supplier TLC"
-                      stroke="#22c55e"
+                      stroke={ABI_PRIMARY_BLUE}
                       strokeWidth={2.5}
                       dot={false}
                       connectNulls
@@ -531,13 +575,72 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                       type="monotone"
                       dataKey="supplierTlcValueDotted"
                       name="Supplier TLC"
-                      stroke="#22c55e"
+                      stroke={ABI_PRIMARY_BLUE}
                       strokeWidth={2.5}
                       strokeDasharray="6 4"
                       dot={false}
                       connectNulls
+                      legendType="none"
                     />
                   </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Average TLC Comparison</CardTitle>
+            <CardDescription>
+              Average values from Jan 2026 to Mar 2026 for {(selectedDestination || "Colombia")} vs{" "}
+              {(selectedSourceCountry || "China")}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-xl border border-border bg-card/40 p-3">
+              <div className="h-[260px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={averageMonthlyTlcData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
+                    <Bar
+                      dataKey="averageMarketResearchTlc"
+                      name="Average Market Research TLC"
+                      fill={ABI_GOLD}
+                      radius={[6, 6, 0, 0]}
+                    >
+                      <LabelList
+                        dataKey="averageMarketResearchTlc"
+                        position="top"
+                        formatter={(value: number | string) => formatAmount(value)}
+                        fill="#cbd5e1"
+                        fontSize={11}
+                      />
+                    </Bar>
+                    <Bar
+                      dataKey="averageSupplierTlc"
+                      name="Average Supplier TLC"
+                      fill={ABI_PRIMARY_BLUE}
+                      radius={[6, 6, 0, 0]}
+                    >
+                      <LabelList
+                        dataKey="averageSupplierTlc"
+                        position="top"
+                        formatter={(value: number | string) => formatAmount(value)}
+                        fill="#cbd5e1"
+                        fontSize={11}
+                      />
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -587,14 +690,17 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     <XAxis
                       dataKey="period"
                       tick={{ fontSize: 11, fill: "#a1a1aa" }}
-                      tickFormatter={compactPeriodTick}
+                      tickFormatter={shortMonthTick}
                       interval={0}
                       minTickGap={10}
+                      tickMargin={8}
+                      padding={{ left: 8, right: 24 }}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip content={<TrendTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
                     {trendSeries
                       .filter(
                         (series) =>
@@ -618,6 +724,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                             strokeDasharray="6 4"
                             dot={false}
                             connectNulls
+                            legendType="none"
                           />
                         </React.Fragment>
                       ))}
