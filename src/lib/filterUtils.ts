@@ -21,7 +21,10 @@ export function getYearOptions(startYear = 2018, endYear = 2026) {
   return years;
 }
 
-export function getMonthOptions(selectedYear: string) {
+/** Destinations that only use data through March 2026 (no April in the month dropdown for that year). */
+const EXCLUDE_APRIL_2026_FOR_DESTINATIONS = new Set(["Colombia", "Ecuador"]);
+
+export function getMonthOptions(selectedYear: string, destination?: string) {
   if (!selectedYear) return MONTHS;
   const year = Number(selectedYear);
 
@@ -29,7 +32,10 @@ export function getMonthOptions(selectedYear: string) {
     return MONTHS.slice(6);
   }
   if (year === 2026) {
-    return MONTHS.slice(0, 3);
+    const cap = EXCLUDE_APRIL_2026_FOR_DESTINATIONS.has(destination ?? "")
+      ? 3
+      : 4;
+    return MONTHS.slice(0, cap);
   }
   return MONTHS;
 }

@@ -1,7 +1,25 @@
 import React, { useMemo } from "react";
 import type { CountryCost, VendorBreakdownEntry } from "../types";
-import { formatAmount } from "../types";
+import { formatAmount, formatDeltaVersusMarketForCompany } from "../types";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  ARGENTINA_APRIL_2026_RESIN_VENDOR_LABEL,
+  BRAZIL_APRIL_2026_AMCOR_RESIN_VENDOR_LABEL,
+  getArgentinaApril2026SharedSupplierTlc,
+  getColombiaMarch2026SharedSupplierTlc,
+  getDominicanRepublicApril2026SharedSupplierTlc,
+  getEcuadorMarch2026SharedSupplierTlc,
+  getPanamaApril2026SharedSupplierTlc,
+  getPeruApril2026SharedSupplierTlc,
+  isArgentinaApril2026View,
+  isBrazilApril2026View,
+  isColombiaMarch2026View,
+  isDominicanRepublicApril2026View,
+  isEcuadorMarch2026View,
+  isPanamaApril2026View,
+  isPeruApril2026View,
+  vendorYearMatches,
+} from "../lib/colombiaVendorTlc";
 
 type SourceCountryCardProps = {
   country: CountryCost;
@@ -18,8 +36,58 @@ const TOTAL_LANDED_COST_KEY = "total landed cost";
 const DIFFERENCE_KEY = "difference";
 const SUPPLIER_TLC_LABEL = "total resin price abi virgin formula";
 const SUPPLIER_NAME_PRESETS: Record<string, string[]> = {
-  Brazil: ["Braskem", "Alpek", "M&G Polimeros", "Reliance"],
+  Brazil: ["Amcor", "Valgroup", "Cristalpet", "Engepack"],
 };
+const BRAZIL_DESTINATION = "Brazil";
+const BRAZIL_DESTINATION_SUPPLIERS = [
+  "Amcor",
+  "Valgroup",
+  "Cristalpet",
+  "Engepack",
+] as const;
+const AMCOR_ONLY_DESTINATIONS = new Set([
+  "Argentina",
+  "El Salvador and Honduras",
+  "Colombia",
+  "Ecuador",
+]);
+const AMCOR_ONLY_SUPPLIERS = ["Amcor"] as const;
+
+const PERU_DESTINATION = "Peru";
+const PERU_DESTINATION_SUPPLIERS = ["San Miguel Industrias (SMI)"] as const;
+const DOMINICAN_REPUBLIC_DESTINATION = "Dominican Republic";
+const DOMINICAN_REPUBLIC_DESTINATION_SUPPLIERS = ["SMI PET"] as const;
+
+const NIGERIA_DESTINATION = "Nigeria";
+const NIGERIA_DESTINATION_SUPPLIERS = ["No contract (Resin formula unknown)"] as const;
+const BOLIVIA_DESTINATION = "Bolivia";
+const BOLIVIA_DESTINATION_SUPPLIERS = [
+  "Gestora, Administradora e Industrializadora Preformas S.A.",
+] as const;
+const KOREA_DESTINATION = "Korea";
+const KOREA_DESTINATION_SUPPLIERS: readonly string[] = [];
+const PANAMA_DESTINATION = "Panama";
+const PANAMA_DESTINATION_SUPPLIERS = ["Pastiglas S.A"] as const;
+const URUGUAY_DESTINATION = "Uruguay";
+const URUGUAY_DESTINATION_SUPPLIERS = ["Cristalpet"] as const;
+
+function isAmcorOnlyDestination(destination: string): boolean {
+  return AMCOR_ONLY_DESTINATIONS.has(destination);
+}
+
+function getDestinationFixedSuppliers(destination: string): readonly string[] | null {
+  if (destination === BRAZIL_DESTINATION) return BRAZIL_DESTINATION_SUPPLIERS;
+  if (isAmcorOnlyDestination(destination)) return AMCOR_ONLY_SUPPLIERS;
+  if (destination === PERU_DESTINATION) return PERU_DESTINATION_SUPPLIERS;
+  if (destination === DOMINICAN_REPUBLIC_DESTINATION) return DOMINICAN_REPUBLIC_DESTINATION_SUPPLIERS;
+  if (destination === NIGERIA_DESTINATION) return NIGERIA_DESTINATION_SUPPLIERS;
+  if (destination === BOLIVIA_DESTINATION) return BOLIVIA_DESTINATION_SUPPLIERS;
+  if (destination === KOREA_DESTINATION) return KOREA_DESTINATION_SUPPLIERS;
+  if (destination === PANAMA_DESTINATION) return PANAMA_DESTINATION_SUPPLIERS;
+  if (destination === URUGUAY_DESTINATION) return URUGUAY_DESTINATION_SUPPLIERS;
+  return null;
+}
+
 const DEFAULT_SUPPLIERS = ["Supplier A", "Supplier B"] as const;
 const DUMMY_VARIANCE = [0, 0.018, -0.012, 0.027, -0.02];
 
@@ -31,7 +99,7 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
   vendorBreakdowns,
   isSelected = false,
   onSelect,
-  onDeepDive,
+  onDeepDive: _onDeepDive,
 }) => {
   const marketTlc = useMemo(() => {
     return (
@@ -42,12 +110,36 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
   }, [country.breakdown]);
 
   const supplierTlc = useMemo(() => {
+    if (isColombiaMarch2026View(destination, month, year)) {
+      const shared = getColombiaMarch2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isEcuadorMarch2026View(destination, month, year)) {
+      const shared = getEcuadorMarch2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isPanamaApril2026View(destination, month, year)) {
+      const shared = getPanamaApril2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isPeruApril2026View(destination, month, year)) {
+      const shared = getPeruApril2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isDominicanRepublicApril2026View(destination, month, year)) {
+      const shared = getDominicanRepublicApril2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isArgentinaApril2026View(destination, month, year)) {
+      const shared = getArgentinaApril2026SharedSupplierTlc(vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
     const match = vendorBreakdowns.find(
       (item) =>
         item.destination === destination &&
         item.sourceCountry === country.country &&
         item.month === month &&
-        item.year === year
+        vendorYearMatches(item.year, year)
     );
 
     const vendorTlc = match?.rows.find(
@@ -70,7 +162,7 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
         item.destination === destination &&
         item.sourceCountry === country.country &&
         item.month === month &&
-        item.year === year
+        vendorYearMatches(item.year, year)
     );
 
     const fromData = matches
@@ -101,14 +193,36 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
       supplierBase ??
       marketBase ??
       Number((900 + (country.country.length % 7) * 27).toFixed(1));
+    const fixedSuppliers = getDestinationFixedSuppliers(destination);
+    if (fixedSuppliers !== null && fixedSuppliers.length === 0) {
+      return [];
+    }
+
     const preferredNames =
-      SUPPLIER_NAME_PRESETS[country.country] ?? Array.from(DEFAULT_SUPPLIERS);
+      fixedSuppliers !== null
+        ? [...fixedSuppliers]
+        : (SUPPLIER_NAME_PRESETS[country.country] ?? Array.from(DEFAULT_SUPPLIERS));
+
+    if (
+      fixedSuppliers !== null &&
+      supplierBase !== null &&
+      destination !== BRAZIL_DESTINATION
+    ) {
+      const v = Number(supplierBase.toFixed(1));
+      return preferredNames.map((name, index) => ({
+        name: fromData[0] && index === 0 ? fromData[0].name || name : name,
+        tlcAmount: v,
+      }));
+    }
 
     // Keep actual supplier value if we have one and fill the rest with dummy values.
     const firstActual = fromData[0];
     const simulated = preferredNames.map((name, index) => {
       if (firstActual && index === 0) {
         return { name: firstActual.name || name, tlcAmount: firstActual.tlcAmount };
+      }
+      if (destination === NIGERIA_DESTINATION && !firstActual) {
+        return { name, tlcAmount: null };
       }
       const variance = DUMMY_VARIANCE[index % DUMMY_VARIANCE.length];
       return {
@@ -166,18 +280,31 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
 
           <div>
             {primarySupplier ? (
-              <p className="text-sm font-bold text-primary flex items-center gap-2">
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  Lead
-                </span>
-                <span className="text-muted-foreground">{primarySupplier.name}:</span>
-                {formatTlc(primarySupplier.tlcAmount)}
-                {additionalSupplierCount > 0 ? (
-                  <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                    +{additionalSupplierCount} more
+              <div>
+                <p className="text-sm font-bold text-primary flex items-center gap-2">
+                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    Lead
                   </span>
+                  <span className="text-muted-foreground">{primarySupplier.name}:</span>
+                  {formatTlc(primarySupplier.tlcAmount)}
+                  {additionalSupplierCount > 0 ? (
+                    <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      +{additionalSupplierCount} more
+                    </span>
+                  ) : null}
+                </p>
+                {isArgentinaApril2026View(destination, month, year) ? (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Resin index (Excel): {ARGENTINA_APRIL_2026_RESIN_VENDOR_LABEL}
+                  </p>
                 ) : null}
-              </p>
+                {isBrazilApril2026View(destination, month, year) &&
+                primarySupplier?.name.trim().toLowerCase() === "amcor" ? (
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Resin index (Excel): {BRAZIL_APRIL_2026_AMCOR_RESIN_VENDOR_LABEL}
+                  </p>
+                ) : null}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">N/A</p>
             )}
@@ -189,32 +316,32 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
               const marketValue = parseNumeric(marketTlc);
               const supplierDelta =
                 supplierValue !== null && marketValue !== null
-                  ? Number((marketValue - supplierValue).toFixed(1))
+                  ? Number((supplierValue - marketValue).toFixed(1))
                   : null;
               const supplierSaving = supplierDelta !== null && supplierDelta < 0;
               return (
                 <p
                   className={`text-sm font-semibold ${
                     supplierSaving
-                      ? "text-green-500"
+                      ? "text-success"
                       : supplierDelta === null
                         ? "text-muted-foreground"
-                        : "text-red-500"
+                        : "text-destructive"
                   }`}
                 >
                   {supplierDelta === null
                     ? "N/A"
-                    : `${supplierDelta > 0 ? "+" : ""}$${formatAmount(supplierDelta)}/MT`}
+                    : formatDeltaVersusMarketForCompany(supplierDelta)}
                 </p>
               );
             })() : (
               <p
                 className={`text-base font-semibold ${
                   isSaving
-                    ? "text-green-500"
+                    ? "text-success"
                     : deltaVsSupplier === null
                       ? "text-muted-foreground"
-                      : "text-red-500"
+                      : "text-destructive"
                 }`}
               >
                 {deltaDisplay}
@@ -238,8 +365,9 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
                 const marketValue = parseNumeric(marketTlc);
                 const supplierDelta =
                   supplierValue !== null && marketValue !== null
-                    ? Number((marketValue - supplierValue).toFixed(1))
+                    ? Number((supplierValue - marketValue).toFixed(1))
                     : null;
+                const supplierSaving = supplierDelta !== null && supplierDelta < 0;
                 return (
                   <div
                     key={`${supplier.name}-expanded`}
@@ -247,10 +375,18 @@ const SourceCountryCard: React.FC<SourceCountryCardProps> = ({
                   >
                     <span className="font-medium text-foreground truncate">{supplier.name}</span>
                     <span className="text-primary font-semibold">{formatTlc(supplier.tlcAmount)}</span>
-                    <span className="text-muted-foreground text-right">
+                    <span
+                      className={`text-right font-semibold ${
+                        supplierDelta === null
+                          ? "text-muted-foreground"
+                          : supplierSaving
+                            ? "text-success"
+                            : "text-destructive"
+                      }`}
+                    >
                       {supplierDelta === null
                         ? "N/A"
-                        : `${supplierDelta > 0 ? "+" : ""}$${formatAmount(supplierDelta)}/MT`}
+                        : formatDeltaVersusMarketForCompany(supplierDelta)}
                     </span>
                   </div>
                 );

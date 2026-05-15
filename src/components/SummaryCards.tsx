@@ -57,7 +57,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ country, supplierPrice,vend
                 </CardContent>
             </Card>
 
-            <Card className={`py-4 px-4 hover:-translate-y-0.5 transition-transform ${isSaving ? "border-green-500/20" : "border-red-500/20"
+            <Card className={`py-4 px-4 hover:-translate-y-0.5 transition-transform ${isSaving ? "border-success/25" : "border-destructive/25"
                 }`}>
                 <CardContent className="p-0 flex items-center gap-3.5">
                     <span className="text-2xl shrink-0">{isSaving ? "📉" : "📈"}</span>
@@ -65,7 +65,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ country, supplierPrice,vend
                         <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                             vs. Supplier (${formatAmount(supplierPrice)})
                         </span>
-                        <strong className={`block mt-1 text-base font-bold ${isSaving ? "text-green-500" : "text-red-500"
+                        <strong className={`block mt-1 text-base font-bold ${isSaving ? "text-success" : "text-destructive"
                             }`}>
                             {diffValue !== null
                                 ? `${diffValue > 0 ? "+" : ""}$${formatAmount(diffValue)}/MT`

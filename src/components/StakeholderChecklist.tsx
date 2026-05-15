@@ -56,8 +56,8 @@ const INITIAL_DATA: SectionQuestions[] = [
 
 const PRIORITY_STYLES: Record<string, string> = {
   none: "border-border bg-card/30",
-  "must-have": "border-red-500/40 bg-red-500/10",
-  "good-to-have": "border-green-500/40 bg-green-500/10",
+  "must-have": "border-destructive/40 bg-destructive/10",
+  "good-to-have": "border-success/40 bg-success/10",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {

@@ -6,7 +6,7 @@ type TopRightNavigationProps = {
 };
 
 const ITEMS = [
-  { label: "Home", path: "/" },
+  { label: "View TLCs", path: "/overview" },
   { label: "Deep Dive", path: "/deep-dive" },
   { label: "Trends", path: "/trends" },
   { label: "Trends 2", path: "/trends-2" },
@@ -19,18 +19,29 @@ const TopRightNavigation: React.FC<TopRightNavigationProps> = ({ search }) => {
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
-      <nav aria-label="Universal navigation" className="text-sm text-muted-foreground">
+      <nav
+        aria-label="Universal navigation"
+        className="flex flex-wrap items-center gap-6 text-[0.85rem] text-muted-foreground"
+      >
         {ITEMS.map((item, index) => {
           const isActive = item.path === activePath;
           return (
             <React.Fragment key={item.path}>
               <Link
                 to={{ pathname: item.path, search }}
-                className={isActive ? "font-semibold text-foreground" : "hover:text-foreground transition"}
+                className={
+                  isActive
+                    ? "font-semibold text-foreground no-underline"
+                    : "transition-colors duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:text-foreground no-underline hover:no-underline"
+                }
               >
                 {item.label}
               </Link>
-              {index < ITEMS.length - 1 ? <span className="mx-1.5">/</span> : null}
+              {index < ITEMS.length - 1 ? (
+                <span className="hidden text-muted-foreground/40 sm:inline" aria-hidden>
+                  /
+                </span>
+              ) : null}
             </React.Fragment>
           );
         })}

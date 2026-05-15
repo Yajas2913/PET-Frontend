@@ -18,22 +18,25 @@ export type VendorBreakdownRow = {
   };
 
 export type VendorBreakdownEntry = {
-    destination: string;
-    sourceCountry: string;
-    month: string;
-    year: string;
-    rows: VendorBreakdownRow[];
-  };
+  destination: string;
+  sourceCountry: string;
+  month: string;
+  year: string | number;
+  rows: VendorBreakdownRow[];
+  supplierName?: string;
+  supplier?: string;
+  vendor?: string;
+};
 
   
 export type VendorBreakdown = {
-    destination: string;
-    sourceCountry: string;
-    month: string;
-    year: string;
-    rows: VendorBreakdownRow[];
-    vendorBreakdowns: VendorBreakdownEntry[];
-  };
+  destination: string;
+  sourceCountry: string;
+  month: string;
+  year: string | number;
+  rows: VendorBreakdownRow[];
+  vendorBreakdowns: VendorBreakdownEntry[];
+};
   
 
 export type ApiResponse = {
@@ -52,4 +55,10 @@ export const formatAmount = (value: number | string | null | undefined) => {
         }).format(value);
     }
     return String(value);
+};
+
+/** Raw = supplier TLC − market research TLC. Shown negated so above-market (company loss) is −$/MT, below-market is +$/MT. */
+export const formatDeltaVersusMarketForCompany = (supplierMinusMarket: number): string => {
+    const shown = -supplierMinusMarket;
+    return `${shown > 0 ? "+" : ""}$${formatAmount(shown)}/MT`;
 };

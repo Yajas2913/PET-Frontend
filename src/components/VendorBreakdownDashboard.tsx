@@ -20,11 +20,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { VendorBreakdownEntry } from "../types";
+import type { CountryCost, VendorBreakdownEntry } from "../types";
 import { formatAmount } from "../types";
+import { pickEffectiveVendorSourceCountry } from "../lib/vendorSourcePicker";
+import {
+  buildDestinationSourceMonthly,
+  marketResearchTlcForCountry,
+  supplierTlcFromVendorEntry,
+} from "../lib/vendorTrendsData";
 
 type VendorBreakdownDashboardProps = {
   vendorBreakdowns?: VendorBreakdownEntry[];
+  countries?: CountryCost[];
   selectedDestination?: string;
   selectedSourceCountry?: string;
   selectedMonth?: string;
@@ -68,13 +75,27 @@ const RANGE_START_YEAR = 2026;
 const RANGE_START_MONTH_INDEX = 0; // January
 const RANGE_END_YEAR = 2026;
 const RANGE_END_MONTH_INDEX = 2; // March
-const DOTTED_START_YEAR = 2026;
-const DOTTED_START_MONTH_INDEX = 2; // March
 const ABI_PRIMARY_BLUE = "#003A70";
 const ABI_LIGHT_BLUE = "#00A3E0";
 const ABI_GOLD = "#FFB81C";
 const ABI_DARK_NAVY = "#001F3F";
 const ABI_NEUTRAL = "#94A3B8";
+
+const TREND_COMPONENT_SERIES = [
+  { key: "Resin Index", color: ABI_PRIMARY_BLUE },
+  { key: "Resin Financing cost", color: ABI_LIGHT_BLUE },
+  { key: "Resin Freight cost (Reg)", color: ABI_GOLD },
+  { key: "Resin Freight cost (Inc)", color: ABI_DARK_NAVY },
+  { key: "Others", color: ABI_NEUTRAL },
+] as const;
+
+const COMPONENT_DUMMY_SHARES: Record<string, number> = {
+  "Resin Index": 0.32,
+  "Resin Financing cost": 0.05,
+  "Resin Freight cost (Reg)": 0.14,
+  "Resin Freight cost (Inc)": 0.09,
+  Others: 0.4,
+};
 
 const NUMERIC_SERIES = [
   "Resin Index",
@@ -100,9 +121,6 @@ const parseNumericAmount = (value: string | number | null | undefined) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
-const toPeriodKey = (year: number, monthIndexValue: number) =>
-  `${MONTH_ORDER[monthIndexValue]}-${year}`;
-
 const buildMonthlyPeriods = () => {
   const periods: { year: number; monthIndex: number; month: string; period: string }[] = [];
   for (let year = RANGE_START_YEAR; year <= RANGE_END_YEAR; year += 1) {
@@ -126,11 +144,21 @@ const shortMonthTick = (value: string) => {
   return `${month}-${year.slice(-2)}`;
 };
 
+const AverageTlcBarLabel = (field: "averageMarketResearchTlcRaw" | "averageSupplierTlcRaw") => (props: any) => {
+  const display = formatAmount(props?.payload?.[field] ?? null);
+  const x = Number(props?.x);
+  const y = Number(props?.y);
+  const w = Number(props?.width ?? 0);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return (
+    <text x={x + w / 2} y={y} dy={-4} fill="#cbd5e1" fontSize={11} textAnchor="middle">
+      {display}
+    </text>
+  );
+};
+
 const monthIndex = (month: string) => MONTH_ORDER.indexOf(month);
 const is2026Only = (year: number) => year === 2026;
-const isDottedPeriod = (year: number, monthIdx: number) =>
-  year > DOTTED_START_YEAR ||
-  (year === DOTTED_START_YEAR && monthIdx >= DOTTED_START_MONTH_INDEX);
 
 const sortBreakdowns = (rows: VendorBreakdownEntry[]) =>
   [...rows].sort((a, b) => {
@@ -178,6 +206,27 @@ const buildTrendData = (entries: VendorBreakdownEntry[]) => {
   });
 };
 
+const fillDummyComponentRows = (
+  rows: ReturnType<typeof buildTrendData>,
+  series: readonly { key: string }[]
+) =>
+  rows.map((row, idx) => {
+    const next = { ...row } as Record<string, string | number>;
+    const sumSeries = series.reduce((acc, { key }) => acc + Math.abs(Number(next[key] ?? 0)), 0);
+    const headline = Math.max(
+      Math.abs(Number(next["Final Price"] ?? 0)),
+      Math.abs(Number(next["Total Resing Price ABI Formulae"] ?? 0))
+    );
+    if (sumSeries >= 0.5) return next;
+    const base =
+      headline > 0.5 ? headline : 740 + (idx % 5) * 14 + (Number(next.year) % 7) * 5;
+    series.forEach(({ key }) => {
+      const p = COMPONENT_DUMMY_SHARES[key] ?? 0.08;
+      next[key] = Number((base * p).toFixed(2));
+    });
+    return next;
+  });
+
 const TrendTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   const uniqueRows = payload.reduce((acc: any[], item: any) => {
@@ -193,6 +242,13 @@ const TrendTooltip = ({ active, payload, label }: any) => {
     return acc;
   }, []);
 
+  const displayValue = (item: any) => {
+    const rawKey = `${item.dataKey}Raw`;
+    const fromRaw = item.payload?.[rawKey];
+    if (fromRaw !== undefined) return formatAmount(fromRaw);
+    return formatAmount(item.value);
+  };
+
   return (
     <div className="rounded-xl border border-primary/20 bg-[#020817]/95 px-4 py-3 shadow-2xl">
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">{label}</p>
@@ -202,7 +258,7 @@ const TrendTooltip = ({ active, payload, label }: any) => {
             <span className="font-medium" style={{ color: item.color }}>
               {item.name}
             </span>
-            <span className="font-semibold text-slate-100">{formatAmount(item.value)}</span>
+            <span className="font-semibold text-slate-100">{displayValue(item)}</span>
           </div>
         ))}
       </div>
@@ -212,6 +268,7 @@ const TrendTooltip = ({ active, payload, label }: any) => {
 
 const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   vendorBreakdowns = [],
+  countries,
   selectedDestination,
   selectedSourceCountry,
 //   selectedMonth,
@@ -219,13 +276,23 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   onBack,
 }) => {
   const [selectedTrendSeries, setSelectedTrendSeries] = useState<string>("all");
+
+  const effectiveSourceCountry = useMemo(
+    () =>
+      pickEffectiveVendorSourceCountry(
+        vendorBreakdowns,
+        selectedDestination ?? "",
+        selectedSourceCountry ?? ""
+      ),
+    [vendorBreakdowns, selectedDestination, selectedSourceCountry]
+  );
+
   const filteredEntries = useMemo(() => {
     return vendorBreakdowns.filter((entry) => {
       const destinationMatch = selectedDestination ? entry.destination === selectedDestination : true;
-      const sourceMatch = selectedSourceCountry ? entry.sourceCountry === selectedSourceCountry : true;
-      return destinationMatch && sourceMatch;
+      return destinationMatch && entry.sourceCountry === effectiveSourceCountry;
     });
-  }, [vendorBreakdowns, selectedDestination, selectedSourceCountry]);
+  }, [vendorBreakdowns, selectedDestination, effectiveSourceCountry]);
 
   const baseTrendData = useMemo(() => buildTrendData(filteredEntries), [filteredEntries]);
 
@@ -234,165 +301,79 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
     [baseTrendData]
   );
 
-  const latestPoint = trendData[trendData.length - 1];
-  const previousPoint = trendData[trendData.length - 2];
-  const latestFinalPrice = Number(latestPoint?.["Final Price"] ?? 0);
-  const previousFinalPrice = Number(previousPoint?.["Final Price"] ?? 0);
-  const latestFormula = Number(latestPoint?.["Total Resing Price ABI Formulae"] ?? 0);
-  const previousFormula = Number(previousPoint?.["Total Resing Price ABI Formulae"] ?? 0);
-  const delta = latestFinalPrice - previousFinalPrice;
-  const formulaDelta = latestFormula - previousFormula;
-  const trendSeries = [
-    { key: "Resin Index", color: ABI_PRIMARY_BLUE },
-    { key: "Resin Financing cost", color: ABI_LIGHT_BLUE },
-    { key: "Resin Freight cost (Reg)", color: ABI_GOLD },
-    { key: "Resin Freight cost (Inc)", color: ABI_DARK_NAVY },
-    { key: "Others", color: ABI_NEUTRAL },
-  ] as const;
+  const sortedVendorTimeline = useMemo(() => sortBreakdowns(filteredEntries), [filteredEntries]);
+  const latestVendorEntry = sortedVendorTimeline[sortedVendorTimeline.length - 1];
+  const previousVendorEntry = sortedVendorTimeline[sortedVendorTimeline.length - 2];
+  const latestSupplierTlc = latestVendorEntry ? supplierTlcFromVendorEntry(latestVendorEntry) : null;
+  const previousSupplierTlc = previousVendorEntry ? supplierTlcFromVendorEntry(previousVendorEntry) : null;
+  const supplierTlcDelta =
+    latestSupplierTlc !== null && previousSupplierTlc !== null
+      ? latestSupplierTlc - previousSupplierTlc
+      : null;
+  const marketResearchSnapshot = useMemo(
+    () => marketResearchTlcForCountry(countries, effectiveSourceCountry),
+    [countries, effectiveSourceCountry]
+  );
+  const latestPeriodLabel = latestVendorEntry
+    ? `${latestVendorEntry.month.slice(0, 3)} ${latestVendorEntry.year}`
+    : null;
+  const trendDataWithDummyComponents = useMemo(
+    () => fillDummyComponentRows(trendData, TREND_COMPONENT_SERIES),
+    [trendData]
+  );
 
-  const destinationSourceMonthly = useMemo(() => {
-    const destination = selectedDestination || "Colombia";
-    const source = selectedSourceCountry || "China";
-    const periods = buildMonthlyPeriods();
-
-    const entriesForSource = vendorBreakdowns.filter(
-      (entry) => entry.destination === destination && entry.sourceCountry === source
-    );
-
-    const supplierByPeriod = new Map<string, number>();
-    entriesForSource.forEach((entry) => {
-      const tlcRow = entry.rows.find(
-        (row) =>
-          row.label.trim().toLowerCase() ===
-          "total resin price abi virgin formula".toLowerCase()
-      );
-      const value = parseNumericAmount(tlcRow?.amount);
-      const monthIdx = MONTH_ORDER.indexOf(entry.month);
-      if (monthIdx >= 0) {
-        supplierByPeriod.set(toPeriodKey(Number(entry.year), monthIdx), value);
-      }
-    });
-
-    const marketActualBaseBySource: Record<string, number> = {
-      China: 818.9,
-      Vietnam: 954.0,
-      Thailand: 980.2,
-      Taiwan: 971.4,
-      Indonesia: 988.7,
-      India: 994.0,
-      "South Korea": 996.2,
-      Mexico: 1249.8,
-    };
-
-    const baseMarket = marketActualBaseBySource[source] ?? 900;
-    const fallbackSupplierBase =
-      supplierByPeriod.get(toPeriodKey(2026, 2)) ?? baseMarket + 120;
-
-    return periods.map((period, idx) => {
-      const key = toPeriodKey(period.year, period.monthIndex);
-      const actualSupplier = supplierByPeriod.get(key);
-      const seasonalWave = Math.sin((idx / 12) * Math.PI * 2);
-      const shortCycle = ((idx % 5) - 2) * 1.6;
-      const secondaryWave = Math.sin((idx / 6) * Math.PI * 2 + 0.8);
-      const volatilityPulse = idx % 17 === 0 ? 14 : idx % 11 === 0 ? -10 : 0;
-      const supplierVariability = seasonalWave * 8 + shortCycle;
-      const marketVariability =
-        seasonalWave * 18 +
-        secondaryWave * 11 -
-        shortCycle * 1.2 +
-        volatilityPulse;
-      const supplierTlcValue =
-        actualSupplier !== undefined
-          ? actualSupplier
-          : Number(
-              (
-                fallbackSupplierBase * (0.85 + idx * 0.0018) +
-                supplierVariability
-              ).toFixed(1)
-            );
-
-      // Use actual where known (Mar 2026), dummy for historical gaps.
-      const marketResearchValue =
-        period.year === 2026 && period.monthIndex === 2
-          ? baseMarket
-          : Number(
-              (baseMarket * (0.86 + idx * 0.0014) + marketVariability).toFixed(1)
-            );
-
-      return {
-        period: period.period,
-        year: period.year,
-        monthIndex: period.monthIndex,
-        marketResearchValue,
-        supplierTlcValue,
-      };
-    });
-  }, [vendorBreakdowns, selectedDestination, selectedSourceCountry]);
-
-  const destinationSourceMonthlyStyled = useMemo(
+  const destinationSourceMonthly = useMemo(
     () =>
-      destinationSourceMonthly.map((row, index) => {
-        const dotted = isDottedPeriod(row.year, row.monthIndex);
-        const next = destinationSourceMonthly[index + 1];
-        const nextIsDotted =
-          next !== undefined && isDottedPeriod(next.year, next.monthIndex);
-        return {
-          ...row,
-          marketResearchValueSolid: dotted ? null : row.marketResearchValue,
-          marketResearchValueDotted:
-            dotted || nextIsDotted ? row.marketResearchValue : null,
-          supplierTlcValueSolid: dotted ? null : row.supplierTlcValue,
-          supplierTlcValueDotted:
-            dotted || nextIsDotted ? row.supplierTlcValue : null,
-        };
+      buildDestinationSourceMonthly({
+        periods: buildMonthlyPeriods(),
+        vendorBreakdowns,
+        destination: selectedDestination || "Colombia",
+        sourceCountry: effectiveSourceCountry,
+        countries,
       }),
-    [destinationSourceMonthly]
+    [vendorBreakdowns, selectedDestination, effectiveSourceCountry, countries]
   );
 
   const trendDataStyled = useMemo(
     () =>
-      trendData.map((row, index) => {
-        const monthIdx = monthIndex(String(row.month));
-        const dotted = isDottedPeriod(Number(row.year), monthIdx);
-        const next = trendData[index + 1];
-        const nextMonthIdx = next ? monthIndex(String(next.month)) : -1;
-        const nextIsDotted =
-          next !== undefined && isDottedPeriod(Number(next.year), nextMonthIdx);
+      trendDataWithDummyComponents.map((row) => {
         const styledRow: Record<string, string | number | null> = { ...row };
-        trendSeries.forEach((series) => {
+        TREND_COMPONENT_SERIES.forEach((series) => {
           const value = row[series.key] as number;
-          styledRow[`${series.key}Solid`] = dotted ? null : value;
-          styledRow[`${series.key}Dotted`] = dotted || nextIsDotted ? value : null;
+          styledRow[`${series.key}Solid`] = value;
+          styledRow[`${series.key}Dotted`] = null;
         });
         return styledRow;
       }),
-    [trendData, trendSeries]
+    [trendDataWithDummyComponents]
   );
 
   const averageMonthlyTlcData = useMemo(() => {
     if (!destinationSourceMonthly.length) return [];
-    const totals = destinationSourceMonthly.reduce(
-      (acc, row) => {
-        return {
-          marketResearch: acc.marketResearch + Number(row.marketResearchValue ?? 0),
-          supplier: acc.supplier + Number(row.supplierTlcValue ?? 0),
-        };
-      },
-      { marketResearch: 0, supplier: 0 }
-    );
-    const count = destinationSourceMonthly.length;
+    const mrVals = destinationSourceMonthly
+      .map((row) => row.marketResearchValue)
+      .filter((v): v is number => v !== null && Number.isFinite(v));
+    const supVals = destinationSourceMonthly
+      .map((row) => row.supplierTlcValue)
+      .filter((v): v is number => v !== null && Number.isFinite(v));
+    const avg = (vals: number[]) =>
+      vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
+    const averageMarketResearchTlcRaw = avg(mrVals);
+    const averageSupplierTlcRaw = avg(supVals);
     return [
       {
         label: "Average",
-        averageMarketResearchTlc: Number((totals.marketResearch / count).toFixed(2)),
-        averageSupplierTlc: Number((totals.supplier / count).toFixed(2)),
+        averageMarketResearchTlc: averageMarketResearchTlcRaw ?? 0,
+        averageSupplierTlc: averageSupplierTlcRaw ?? 0,
+        averageMarketResearchTlcRaw,
+        averageSupplierTlcRaw,
       },
     ];
   }, [destinationSourceMonthly]);
 
   if (!trendData.length) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-8 max-sm:px-4">
+      <div className="min-h-screen bg-gradient-to-b from-background to-card px-6 py-8 max-sm:px-4">
         <Card className="mx-auto w-full max-w-[1400px] animate-fade-in-up shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl">Historical view of supplier quote vs market research</CardTitle>
@@ -404,7 +385,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-8 max-sm:px-4 max-sm:py-5">
+    <div className="min-h-screen bg-gradient-to-b from-background to-card px-6 py-8 max-sm:px-4 max-sm:py-5">
       <section className="mx-auto w-full max-w-[1400px] space-y-6 animate-fade-in-up">
         <Card className="border-primary/10 bg-card/80 shadow-lg backdrop-blur">
           <CardContent className="flex flex-wrap items-end justify-between gap-5 p-6 max-sm:p-4">
@@ -416,6 +397,13 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
                   Explore monthly supplier cost components and run quick simulations without leaving the current analysis flow.
                 </p>
+                {selectedSourceCountry &&
+                selectedSourceCountry.trim() !== effectiveSourceCountry ? (
+                  <p className="text-xs text-muted-foreground">
+                    No vendor rows for <span className="font-semibold text-foreground">{selectedSourceCountry}</span>{" "}
+                    with this destination; showing <span className="font-semibold text-foreground">{effectiveSourceCountry}</span>.
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
@@ -423,15 +411,15 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                     Selected Source
                   </p>
-                  <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
-                    {selectedSourceCountry || "All Sources"}
+                  <h2 className="text-xl font-extrabold pet-gradient-heading bg-clip-text text-transparent">
+                    {effectiveSourceCountry}
                   </h2>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                     Selected Destination
                   </p>
-                  <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                  <h2 className="text-xl font-extrabold pet-gradient-heading bg-clip-text text-transparent">
                     {selectedDestination || "All Destinations"}
                   </h2>
                 </div>
@@ -463,48 +451,52 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="border-primary/20 py-2 px-2 shadow-lg">
             <CardHeader className="pb-2 space-y-1">
-              <CardDescription>Supplier TLC (March 2026)</CardDescription>
+              <CardDescription>
+                Supplier TLC{latestPeriodLabel ? ` (${latestPeriodLabel})` : ""}
+              </CardDescription>
               <CardTitle className="text-3xl font-extrabold text-foreground">
-                {formatAmount(latestFinalPrice)}
+                {formatAmount(latestSupplierTlc)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Badge
-                variant="secondary"
-                className={
-                  delta <= 0
-                    ? "bg-green-500/15 text-green-400 border border-green-500/20"
-                    : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
-                }
-              >
-                {delta >= 0 ? "+" : ""}
-                {formatAmount(delta)} vs previous month
-              </Badge>
-              <p className="text-xs text-muted-foreground">Latest available final delivered price.</p>
+              {supplierTlcDelta !== null ? (
+                <Badge
+                  variant="secondary"
+                  className={
+                    supplierTlcDelta <= 0
+                      ? "bg-success/15 text-success border border-success/25"
+                      : "bg-primary/10 text-primary border border-primary/25"
+                  }
+                >
+                  {supplierTlcDelta >= 0 ? "+" : ""}
+                  {formatAmount(supplierTlcDelta)} vs previous month
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="border border-border bg-muted/30 text-muted-foreground">
+                  {previousVendorEntry ? "No prior supplier TLC row" : "Single month in range"}
+                </Badge>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Latest <span className="font-medium text-foreground">Total Resin Price ABI VIRGIN Formula</span> from
+                vendor data.
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="border-yellow-500/20 py-2 px-2 shadow-lg">
+          <Card className="border-primary/25 py-2 px-2 shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
             <CardHeader className="pb-2 space-y-1">
-              <CardDescription>Market Research TLC (March 2026)</CardDescription>
+              <CardDescription>Market Research TLC (benchmark)</CardDescription>
               <CardTitle className="text-3xl font-extrabold text-primary">
-                {formatAmount(latestFormula)}
+                {formatAmount(marketResearchSnapshot)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Badge
-                variant="secondary"
-                className={
-                  formulaDelta <= 0
-                    ? "bg-green-500/15 text-green-400 border border-green-500/20"
-                    : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
-                }
-              >
-                {formulaDelta >= 0 ? "+" : ""}
-                {formatAmount(formulaDelta)} vs previous month
+              <Badge variant="secondary" className="border border-border bg-muted/30 text-muted-foreground">
+                Country snapshot (not monthly)
               </Badge>
               <p className="text-xs text-muted-foreground">
-                Mapped from Total Resin Price ABI VIRGIN Formula.
+                Total landed cost from the market research country breakdown for{" "}
+                <span className="font-medium text-foreground">{effectiveSourceCountry}</span>.
               </p>
             </CardContent>
           </Card>
@@ -515,18 +507,21 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           <CardHeader>
             <CardTitle className="text-xl">Monthly Market Research TLC vs Supplier TLC</CardTitle>
             <CardDescription>
-              {(selectedDestination || "Colombia")} vs {(selectedSourceCountry || "China")} from Jan 2026 to Mar 2026.
+              {(selectedDestination || "Colombia")} vs {effectiveSourceCountry} from Jan 2026 to Mar 2026.
             </CardDescription>
-            <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
+            <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-primary/35 bg-[rgba(230,168,23,0.1)] px-2.5 py-1 text-[11px] font-semibold text-primary">
               <span aria-hidden>⚠</span>
-              <span>Market Research values are dummy data with simulated variability.</span>
+              <span>
+                Market Research TLC is a single benchmark from country breakdown (flat line). Supplier TLC uses
+                vendor rows only—missing months show as gaps.
+              </span>
             </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border bg-card/40 p-3">
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={destinationSourceMonthlyStyled} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                  <LineChart data={destinationSourceMonthly} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                     <XAxis
                       dataKey="period"
@@ -544,7 +539,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
                     <Line
                       type="monotone"
-                      dataKey="marketResearchValueSolid"
+                      dataKey="marketResearchValue"
                       name="Market Research TLC"
                       stroke={ABI_GOLD}
                       strokeWidth={2.5}
@@ -553,34 +548,12 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     />
                     <Line
                       type="monotone"
-                      dataKey="marketResearchValueDotted"
-                      name="Market Research TLC"
-                      stroke={ABI_GOLD}
-                      strokeWidth={2.5}
-                      strokeDasharray="6 4"
-                      dot={false}
-                      connectNulls
-                      legendType="none"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="supplierTlcValueSolid"
+                      dataKey="supplierTlcValue"
                       name="Supplier TLC"
                       stroke={ABI_PRIMARY_BLUE}
                       strokeWidth={2.5}
-                      dot={false}
+                      dot={{ r: 3, fill: ABI_PRIMARY_BLUE }}
                       connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="supplierTlcValueDotted"
-                      name="Supplier TLC"
-                      stroke={ABI_PRIMARY_BLUE}
-                      strokeWidth={2.5}
-                      strokeDasharray="6 4"
-                      dot={false}
-                      connectNulls
-                      legendType="none"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -594,7 +567,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
             <CardTitle className="text-xl">Average TLC Comparison</CardTitle>
             <CardDescription>
               Average values from Jan 2026 to Mar 2026 for {(selectedDestination || "Colombia")} vs{" "}
-              {(selectedSourceCountry || "China")}.
+              {effectiveSourceCountry}.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -618,13 +591,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                       fill={ABI_GOLD}
                       radius={[6, 6, 0, 0]}
                     >
-                      <LabelList
-                        dataKey="averageMarketResearchTlc"
-                        position="top"
-                        formatter={(value: number | string) => formatAmount(value)}
-                        fill="#cbd5e1"
-                        fontSize={11}
-                      />
+                      <LabelList dataKey="averageMarketResearchTlc" position="top" content={AverageTlcBarLabel("averageMarketResearchTlcRaw")} />
                     </Bar>
                     <Bar
                       dataKey="averageSupplierTlc"
@@ -632,13 +599,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                       fill={ABI_PRIMARY_BLUE}
                       radius={[6, 6, 0, 0]}
                     >
-                      <LabelList
-                        dataKey="averageSupplierTlc"
-                        position="top"
-                        formatter={(value: number | string) => formatAmount(value)}
-                        fill="#cbd5e1"
-                        fontSize={11}
-                      />
+                      <LabelList dataKey="averageSupplierTlc" position="top" content={AverageTlcBarLabel("averageSupplierTlcRaw")} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -651,7 +612,8 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
           <CardHeader>
             <CardTitle className="text-xl">Supplier cost components breakdown</CardTitle>
             <CardDescription>
-              Resin index, financing, freight (regular/incremental), and others across months.
+              Resin index, financing, freight (regular/incremental), and others across months. When source rows omit these
+              components, illustrative shares are filled from Final Price / formula so the chart is readable.
             </CardDescription>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -665,7 +627,7 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
               >
                 All
               </button>
-              {trendSeries.map((series) => (
+              {TREND_COMPONENT_SERIES.map((series) => (
                 <button
                   key={series.key}
                   type="button"
@@ -701,32 +663,22 @@ const VendorBreakdownDashboard: React.FC<VendorBreakdownDashboardProps> = ({
                     <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} tickLine={false} axisLine={false} width={48} />
                     <Tooltip content={<TrendTooltip />} />
                     <Legend wrapperStyle={{ fontSize: "12px", color: "#cbd5e1" }} />
-                    {trendSeries
+                    {TREND_COMPONENT_SERIES
                       .filter(
                         (series) =>
                           selectedTrendSeries === "all" || selectedTrendSeries === series.key
                       )
                       .map((series) => (
-                        <React.Fragment key={series.key}>
-                          <Line
-                            type="monotone"
-                            dataKey={`${series.key}Solid`}
-                            stroke={series.color}
-                            strokeWidth={2.2}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={`${series.key}Dotted`}
-                            stroke={series.color}
-                            strokeWidth={2.2}
-                            strokeDasharray="6 4"
-                            dot={false}
-                            connectNulls
-                            legendType="none"
-                          />
-                        </React.Fragment>
+                        <Line
+                          key={series.key}
+                          type="monotone"
+                          dataKey={`${series.key}Solid`}
+                          name={series.key}
+                          stroke={series.color}
+                          strokeWidth={2.2}
+                          dot={false}
+                          connectNulls
+                        />
                       ))}
                   </LineChart>
                 </ResponsiveContainer>

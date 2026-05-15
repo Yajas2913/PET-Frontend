@@ -1,20 +1,50 @@
 import React, { useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { ApiResponse } from "../types";
-import Header from "../components/Header";
+import type { ApiResponse, VendorBreakdownEntry } from "../types";
 import BreakdownTable from "../components/BreakdownTable";
-import TopRightNavigation from "../components/TopRightNavigation";
 import RevealOnScroll from "../components/RevealOnScroll";
 import { Card, CardContent } from "@/components/ui/card";
 import type { BreakdownItem, VendorBreakdownRow } from "../types";
-import { formatAmount } from "../types";
+import { formatAmount, formatDeltaVersusMarketForCompany } from "../types";
 import { getMonthOptions, getYearOptions } from "../lib/filterUtils";
+import {
+  ARGENTINA_APRIL_2026_RESIN_VENDOR_LABEL,
+  BRAZIL_APRIL_2026_AMCOR_RESIN_VENDOR_LABEL,
+  getArgentinaApril2026SharedSupplierTlc,
+  getBrazilApril2026AmcorSupplierTlc,
+  getColombiaMarch2026SharedSupplierTlc,
+  getDominicanRepublicApril2026SharedSupplierTlc,
+  getEcuadorMarch2026SharedSupplierTlc,
+  getPanamaApril2026SharedSupplierTlc,
+  getPeruApril2026SharedSupplierTlc,
+  isArgentinaApril2026View,
+  isBrazilApril2026View,
+  isColombiaMarch2026View,
+  isDominicanRepublicApril2026View,
+  isEcuadorMarch2026View,
+  isPanamaApril2026View,
+  isPeruApril2026View,
+  vendorYearMatches,
+} from "../lib/colombiaVendorTlc";
 
 type CurrentLayoutPageProps = {
   data: ApiResponse;
 };
 
-const DEFAULT_DESTINATIONS = ["El Salvador", "Brazil", "Honduras"];
+const DEFAULT_DESTINATIONS = [
+  "Brazil",
+  "Argentina",
+  "El Salvador and Honduras",
+  "Colombia",
+  "Peru",
+  "Dominican Republic",
+  "Nigeria",
+  "Bolivia",
+  "Korea",
+  "Panama",
+  "Uruguay",
+  "Ecuador",
+];
 
 const TOTAL_LANDED_COST_KEY = "total landed cost";
 const SUPPLIER_TLC_LABEL = "total resin price abi virgin formula";
@@ -40,11 +70,13 @@ function getMarketTlc(breakdown: BreakdownItem[]) {
   );
 }
 
-function getDiffValue(breakdown: BreakdownItem[]) {
-  return (
-    breakdown.find((b) => b.label.toLowerCase().includes("difference"))?.amount ??
-    null
-  );
+function parseBreakdownNumeric(value: number | string | null | undefined): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/,/g, "");
+  if (!normalized || normalized.toLowerCase() === "n/a" || normalized === "-") return null;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
 }
 
 function getSupplierTlc(vendorBreakdown: VendorBreakdownRow[]) {
@@ -59,6 +91,10 @@ function formatTlc(value: number | string | null | undefined) {
   if (typeof value === "number") return `$${formatAmount(value)}/MT`;
   if (value === null || value === undefined || value === "") return "N/A";
   return formatAmount(value);
+}
+
+function entrySupplierSlot(item: VendorBreakdownEntry): string {
+  return (item.supplierName ?? item.supplier ?? item.vendor ?? "").trim().toLowerCase();
 }
 
 const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
@@ -99,8 +135,8 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
 
   const selectedYear = paramYear || derivedDefaultYear;
   const monthOptions = useMemo(
-    () => getMonthOptions(selectedYear),
-    [selectedYear]
+    () => getMonthOptions(selectedYear, selectedDestination),
+    [selectedYear, selectedDestination]
   );
 
   const selectedMonthRaw = paramMonth || data.month || "";
@@ -150,15 +186,21 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
   const activeCountry = data.countries.find((c) => c.country === selectedSource) ?? data.countries[0];
 
   const vendorBreakdown = useMemo(() => {
-    const match = data.vendorBreakdowns.find(
+    const pool = data.vendorBreakdowns.filter(
       (item) =>
         item.destination === selectedDestination &&
         item.sourceCountry === activeCountry?.country &&
         item.month === selectedMonth &&
-        item.year === selectedYear
+        vendorYearMatches(item.year, selectedYear)
     );
-
-    return match?.rows ?? [];
+    if (
+      isBrazilApril2026View(selectedDestination, selectedMonth, selectedYear) &&
+      pool.length > 1
+    ) {
+      const amcor = pool.find((item) => entrySupplierSlot(item) === "amcor");
+      return (amcor ?? pool[0])?.rows ?? [];
+    }
+    return pool[0]?.rows ?? [];
   }, [
     data.vendorBreakdowns,
     selectedDestination,
@@ -168,18 +210,62 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
   ]);
 
   const marketTlc = activeCountry ? getMarketTlc(activeCountry.breakdown) : null;
-  const diffValue = activeCountry ? getDiffValue(activeCountry.breakdown) : null;
-  const supplierTlc = getSupplierTlc(vendorBreakdown);
+  const supplierTlc = useMemo(() => {
+    if (isColombiaMarch2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getColombiaMarch2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isEcuadorMarch2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getEcuadorMarch2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isPanamaApril2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getPanamaApril2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isPeruApril2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getPeruApril2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isDominicanRepublicApril2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getDominicanRepublicApril2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isArgentinaApril2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getArgentinaApril2026SharedSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    if (isBrazilApril2026View(selectedDestination, selectedMonth, selectedYear)) {
+      const shared = getBrazilApril2026AmcorSupplierTlc(data.vendorBreakdowns);
+      if (shared !== null) return shared;
+    }
+    return getSupplierTlc(vendorBreakdown);
+  }, [
+    data.vendorBreakdowns,
+    selectedDestination,
+    selectedMonth,
+    selectedYear,
+    vendorBreakdown,
+  ]);
 
-  const isSaving = typeof diffValue === "number" && diffValue < 0;
+  /** Supplier TLC − market TLC (same convention as HomePage / SourceCountryCard). */
+  const supplierVersusMarketDelta = useMemo(() => {
+    const m = parseBreakdownNumeric(marketTlc);
+    const s = parseBreakdownNumeric(supplierTlc);
+    if (m === null || s === null) return null;
+    return Number((s - m).toFixed(1));
+  }, [marketTlc, supplierTlc]);
+
+  const isSaving =
+    supplierVersusMarketDelta !== null && supplierVersusMarketDelta < 0;
   const diffDisplay =
-    typeof diffValue === "number"
-      ? `${diffValue > 0 ? "+" : ""}$${formatAmount(diffValue)}/MT`
-      : "N/A";
+    supplierVersusMarketDelta === null
+      ? "N/A"
+      : formatDeltaVersusMarketForCompany(supplierVersusMarketDelta);
 
   const isDummyMarketResearchData = useMemo(() => {
     const start = 2018 * 12 + MONTH_TO_INDEX.July;
-    const end = 2026 * 12 + MONTH_TO_INDEX.February;
+    const end = 2026 * 12 + MONTH_TO_INDEX.April;
     const year = Number(selectedYear);
     const monthIndex = MONTH_TO_INDEX[selectedMonth];
     if (!Number.isFinite(year) || monthIndex === undefined) return false;
@@ -189,7 +275,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
 
   return (
     <div className="min-h-screen">
-      <main className="p-7 flex flex-col gap-5 overflow-y-auto bg-gradient-to-b from-background to-[#0f0f0f] max-sm:p-4">
+      <main className="flex flex-col gap-5 bg-gradient-to-b from-background to-card p-7 max-sm:p-4">
 
         <RevealOnScroll>
           <section className="grid grid-cols-[minmax(0,1fr)_320px] items-stretch gap-4 max-md:grid-cols-1">
@@ -199,7 +285,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
                   Selected Source
                 </p>
-                <h2 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+                <h2 className="text-xl font-extrabold pet-gradient-heading bg-clip-text text-transparent">
                   {activeCountry?.country ?? "—"}
                 </h2>
               </div>
@@ -217,16 +303,16 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                 <div
                   className={`rounded-xl border p-3 ${
                     isSaving
-                      ? "border-green-500/20 bg-green-500/10"
-                      : "border-red-500/20 bg-red-500/10"
+                      ? "border-success/25 bg-success/10"
+                      : "border-destructive/25 bg-destructive/10"
                   }`}
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    vs. Supplier (${formatAmount(data.supplierPrice)})
+                    vs. Market Research TLC
                   </p>
                   <p
                     className={`mt-1 text-base font-extrabold ${
-                      isSaving ? "text-green-500" : "text-red-500"
+                      isSaving ? "text-success" : "text-destructive"
                     }`}
                   >
                     {diffDisplay}
@@ -240,6 +326,23 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
                   <p className="mt-1 text-base font-extrabold text-primary">
                     {formatTlc(supplierTlc)}
                   </p>
+                  {isArgentinaApril2026View(
+                    selectedDestination,
+                    selectedMonth,
+                    selectedYear
+                  ) ? (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Resin index (Excel): {ARGENTINA_APRIL_2026_RESIN_VENDOR_LABEL}
+                    </p>
+                  ) : isBrazilApril2026View(
+                    selectedDestination,
+                    selectedMonth,
+                    selectedYear
+                  ) ? (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Amcor resin index (Excel): {BRAZIL_APRIL_2026_AMCOR_RESIN_VENDOR_LABEL}
+                    </p>
+                  ) : null}
                 </div>
 
               </div>
@@ -251,7 +354,7 @@ const CurrentLayoutPage: React.FC<CurrentLayoutPageProps> = ({ data }) => {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                 Selected Destination
               </p>
-              <h3 className="text-xl font-extrabold bg-gradient-to-r from-primary to-yellow-300 bg-clip-text text-transparent">
+              <h3 className="text-xl font-extrabold pet-gradient-heading bg-clip-text text-transparent">
                 {selectedDestination}
               </h3>
               <p className="mt-3 text-sm text-muted-foreground">

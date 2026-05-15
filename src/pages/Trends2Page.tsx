@@ -1,7 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import type { ApiResponse, VendorBreakdownEntry } from "../types";
-import TopRightNavigation from "../components/TopRightNavigation";
 import RevealOnScroll from "../components/RevealOnScroll";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatAmount } from "../types";
@@ -136,7 +134,6 @@ const Trends2Tooltip = ({ active, payload, label }: any) => {
 };
 
 const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
-  const [searchParams] = useSearchParams();
   const fixedDestination = "Colombia";
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(["China"]);
 
@@ -245,7 +242,7 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
   const allSelected = allSources.length > 0 && allSources.every((source) => selectedSuppliers.includes(source));
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-[#0f0f0f] px-6 py-6 max-sm:px-4">
+    <div className="min-h-screen bg-gradient-to-b from-background to-card px-6 py-6 max-sm:px-4">
       <RevealOnScroll>
         <section className="mx-auto w-full max-w-[1400px] space-y-4">
           <Card className="shadow-lg">
@@ -292,7 +289,7 @@ const Trends2Page: React.FC<Trends2PageProps> = ({ data }) => {
                 Use Ctrl+Click (Cmd+Click on Mac) to add or remove multiple countries,
                 or click Select All.
               </p>
-              <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
+              <div className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-primary/35 bg-[rgba(230,168,23,0.1)] px-2.5 py-1 text-[11px] font-semibold text-primary">
                 <span aria-hidden>⚠</span>
                 <span>Historical values are dummy/simulated for trends view.</span>
               </div>

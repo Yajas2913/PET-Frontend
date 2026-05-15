@@ -57,6 +57,19 @@ const SUPPLIER_MAPPING: Record<string, string> = {
   "final price fifo": "Final Price",
 };
 
+/** ``final_data`` **Mapping Columns** labels (Peru / Panama / DR ``*_inputs_final``) → common component.
+ *  Do **not** map ``Total Landing Cost`` here: supplier TLC for that row already comes from
+ *  **Total Resin Price ABI VIRGIN Formula** (``SUPPLIER_MAPPING``). Mapping both doubles the table total.
+ */
+const DESTINATION_INPUTS_FINAL_SUPPLIER_MAPPING: Record<string, string> = {
+  "resin index vpet": "Resin Index",
+  "freight": "Freight",
+  "tax": "Local Taxes & Fees",
+  "insurance": "Insurance",
+  "final price": "Final Price",
+  "final price fifo": "Final Price",
+};
+
 const MARKET_MAPPING: Record<string, string> = {
   "pet resin cost (fob):": "Resin Index",
   "freight cost:": "Freight",
@@ -114,28 +127,30 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
     });
 
     vendorBreakdown.forEach((item) => {
-      const mapped = SUPPLIER_MAPPING[normalize(item.label)];
+      const key = normalize(item.label);
+      const mapped =
+        SUPPLIER_MAPPING[key] ?? DESTINATION_INPUTS_FINAL_SUPPLIER_MAPPING[key];
       const amount = toNumber(item.amount);
       if (!mapped || amount === null) return;
       supplierSums.set(mapped, (supplierSums.get(mapped) ?? 0) + amount);
     });
 
-    return COMMON_COMPONENT_ORDER
-      .map((component) => ({
-        component,
-        marketValue: marketSums.get(component),
-        supplierValue: supplierSums.get(component),
-      }))
-      .filter((row) => row.marketValue !== undefined || row.supplierValue !== undefined);
+    return COMMON_COMPONENT_ORDER.map((component) => ({
+      component,
+      marketValue: marketSums.get(component),
+      supplierValue: supplierSums.get(component),
+    }));
   }, [breakdown, vendorBreakdown]);
 
   const componentChartData = useMemo(
     () =>
-      comparisonRows.map((row) => ({
-        component: row.component,
-        marketValue: row.marketValue ?? 0,
-        supplierValue: row.supplierValue ?? 0,
-      })),
+      comparisonRows
+        .filter((row) => row.marketValue !== undefined || row.supplierValue !== undefined)
+        .map((row) => ({
+          component: row.component,
+          marketValue: row.marketValue ?? 0,
+          supplierValue: row.supplierValue ?? 0,
+        })),
     [comparisonRows]
   );
 
@@ -146,12 +161,12 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
         <CardDescription>
           Market Research and Supplier values mapped to common components ($/MT).
         </CardDescription>
-        <div className="mt-2 inline-flex w-fit self-start items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+        <div className="mt-2 inline-flex w-fit self-start items-center gap-2 rounded-md border border-primary/35 bg-[rgba(230,168,23,0.1)] px-2.5 py-1 text-[11px] font-semibold text-primary">
           <span aria-hidden>⚠</span>
           <span>Verify the new classifications</span>
         </div>
         {isDummyMarketResearchData ? (
-          <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] font-medium text-yellow-300">
+          <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/35 bg-[rgba(230,168,23,0.1)] px-2.5 py-1 text-[11px] font-semibold text-primary">
             <span aria-hidden>⚠</span>
             <span>Market Research values include dummy data in selected period</span>
           </div>
@@ -314,7 +329,7 @@ const BreakdownTable: React.FC<BreakdownTableProps> = ({
             <button
               type="button"
               onClick={() => setShowSupplierSheetTable((prev) => !prev)}
-              className="flex w-full items-center justify-between border-l-4 border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-left"
+              className="flex w-full items-center justify-between border-l-4 border-primary/50 bg-primary/10 px-3 py-2 text-left"
             >
               <span className="text-sm font-semibold tracking-wide text-foreground">
                 Supplier Sheet Details
